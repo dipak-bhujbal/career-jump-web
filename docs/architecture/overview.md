@@ -33,6 +33,103 @@ flowchart TD
     DDB --> TenantIsolation
 ```
 
+## System Context Diagram
+
+This diagram shows the official runtime boundaries: browser, isolated SPA hosting,
+shared AWS backend, identity, email, and scheduler services.
+
+```mermaid
+flowchart LR
+    User["User"]
+    Browser["Browser\nReact SPA"]
+
+    subgraph WebStack["career-jump-web-poc"]
+        CF["Amazon CloudFront"]
+        S3["Amazon S3\nStatic SPA bundle"]
+    end
+
+    subgraph BackendStack["career-jump-aws-poc"]
+        LambdaURL["Lambda Function URL"]
+        ApiLambda["API Lambda"]
+        Orchestrator["Run Orchestrator Lambda"]
+        Scan["Scan Company Lambda"]
+        Finalize["Finalize Run Lambda"]
+        DDB["Amazon DynamoDB\nShared multi-tenant table"]
+    end
+
+    subgraph Identity["Authentication"]
+        Cognito["Amazon Cognito\nUser Pool + App Client"]
+    end
+
+    subgraph Messaging["Notifications"]
+        SES["Amazon SES"]
+        SNS["Amazon SNS"]
+        Notify["Notification Lambda"]
+    end
+
+    Scheduler["Amazon EventBridge\nSchedules"]
+
+    User --> Browser
+    Browser --> CF
+    CF --> S3
+    Browser --> Cognito
+    Browser --> LambdaURL
+    LambdaURL --> ApiLambda
+    ApiLambda --> DDB
+    ApiLambda --> Orchestrator
+    Orchestrator --> Scan
+    Scan --> Finalize
+    Finalize --> DDB
+    Finalize --> SNS
+    SNS --> Notify
+    Notify --> SES
+    Scheduler --> Orchestrator
+    Cognito --> Browser
+```
+
+## Runtime Containers
+
+This UML-style container view shows how responsibilities are split across the
+frontend repo, backend repo, and AWS-managed services.
+
+```mermaid
+flowchart TB
+    subgraph RepoFrontend["Repo: career-jump-web"]
+        UI["Route components"]
+        Auth["Auth context + Cognito client"]
+        ApiClient["Typed API client"]
+        Docs["Architecture + compliance docs"]
+    end
+
+    subgraph RepoBackend["Repo: career-jump-aws"]
+        Router["HTTP router"]
+        Tenant["Tenant resolver + scoped keys"]
+        Jobs["ATS scan + job pipeline logic"]
+        Storage["DynamoDB/KV persistence"]
+    end
+
+    subgraph ManagedAWS["AWS managed services"]
+        CognitoSvc["Cognito"]
+        LambdaSvc["Lambda"]
+        DdbSvc["DynamoDB"]
+        SesSvc["SES/SNS"]
+        EventSvc["EventBridge"]
+    end
+
+    UI --> Auth
+    UI --> ApiClient
+    Auth --> CognitoSvc
+    ApiClient --> Router
+    Router --> Tenant
+    Router --> Jobs
+    Tenant --> Storage
+    Jobs --> Storage
+    Jobs --> SesSvc
+    Jobs --> EventSvc
+    Router --> LambdaSvc
+    Storage --> DdbSvc
+```
+
 **Key architectural properties:**
 - Tenant identity is the Cognito `sub` UUID — immutable, JWT-verified, never client-supplied
 - All DynamoDB operations are key-prefix scoped; cross-tenant access is architecturally impossible via the user-facing API
@@ -55,7 +152,7 @@ Career Jump is a personal job-monitoring tool that scans company career pages (v
 |------|----------|--------|--------|
 | `career-jump` | Cloudflare Workers + KV + D1 | **Live production (MVP)** | Never — stable, in use |
 | `career-jump-aws` | AWS Lambda + DynamoDB + S3/CloudFront + Cognito | **Active POC backend** | Yes — all backend work happens here |
-| `career-jump-web` | React + Vite (this repo) | **UI rebuild, mock-only** | Yes — all frontend work happens here |
+| `career-jump-web` | React + Vite (this repo) | **UI rebuild, isolated AWS deploy live** | Yes — all frontend work happens here |
 
 ---
 
@@ -106,6 +203,31 @@ Browser → POST /api/run
       → diffs vs. previous inventory (new/updated jobs)
       → sends email notification (Google Apps Script webhook)
       → releases run lock
+```
+
+### Backend Execution Sequence
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant API as API Lambda
+    participant OR as Orchestrator Lambda
+    participant SC as Scan Company Lambda
+    participant FN as Finalize Run Lambda
+    participant DB as DynamoDB
+
+    B->>API: POST /api/run
+    API->>DB: read tenant config
+    API->>OR: invoke async with tenant context
+    OR->>DB: load company list + lock state
+    loop each configured company
+        OR->>SC: invoke scan(company, tenant)
+        SC->>DB: write scan fragment
+    end
+    OR->>FN: invoke finalize(runId, tenant)
+    FN->>DB: merge fragments
+    FN->>DB: diff previous vs current inventory
+    FN-->>B: status exposed via /api/run/status
 ```
 
 ### Auth Flow
@@ -159,7 +281,7 @@ Each adapter normalizes raw postings into a common `JobPosting` schema. The regi
 | `/plan` | Action plan — interview rounds management |
 | `/configuration` | Company config, scan settings, registry |
 
-### Data Flow (Current: Mock Mode)
+### Data Flow (Local Mock Mode)
 
 ```
 React Component
@@ -176,11 +298,58 @@ When connected to real backend:
         → JWT token from localStorage
 ```
 
-### Current Status: Mock-Only
+### Frontend Route and State Model
 
-All API calls are intercepted by a fetch mock. No real backend connection exists yet in `career-jump-web`. The mock state is seeded from `src/mocks/data.ts` and mutated in memory during a session.
+```mermaid
+classDiagram
+    class AppShell {
+      +Sidebar
+      +Topbar
+      +CommandPalette
+    }
+    class AuthContext {
+      +currentUser()
+      +signIn()
+      +signUp()
+      +confirmSignUp()
+      +forgotPassword()
+      +deleteAccount()
+    }
+    class ApiClient {
+      +get(path)
+      +post(path, body)
+      +put(path, body)
+      +del(path)
+    }
+    class QueryLayer {
+      +useQuery()
+      +useMutation()
+    }
+    class RouteModules {
+      jobs
+      applied
+      plan
+      configuration
+      profile
+      settings
+      login
+      signup
+    }
 
-**The React app is not yet deployed to AWS.** It runs locally via `npm run dev` or as a static build (`npm run build`).
+    AppShell --> RouteModules
+    RouteModules --> QueryLayer
+    QueryLayer --> ApiClient
+    RouteModules --> AuthContext
+```
+
+### Current Status
+
+The app supports both local mock mode and live AWS integration:
+
+- Local development can use the fetch mock from `src/mocks/install.ts`
+- Production builds can point at the live Lambda Function URL and Cognito config
+- The React frontend is deployed independently from the vanilla app on its own
+  S3 + CloudFront stack
 
 ---
 
@@ -220,3 +389,29 @@ The React app calls the **same `/api/*` endpoints** as the vanilla app. No backe
 |-------|-----------|
 | `career-jump-aws-poc` | All backend + vanilla frontend (existing, unchanged) |
 | `career-jump-web-poc` | React S3 bucket + CloudFront only (new, isolated) |
+
+## Deployment Topology Diagram
+
+```mermaid
+flowchart TB
+    subgraph Existing["Existing stack: career-jump-aws-poc"]
+        OldCF["CloudFront\nvanilla app"]
+        OldS3["S3\nvanilla assets"]
+        SharedApi["Lambda Function URL"]
+        SharedDb["DynamoDB"]
+        SharedAuth["Cognito"]
+    end
+
+    subgraph New["New stack: career-jump-web-poc"]
+        NewCF["CloudFront\nReact app"]
+        NewS3["S3\nReact assets"]
+    end
+
+    User["User browser"] --> OldCF
+    User --> NewCF
+    OldCF --> OldS3
+    NewCF --> NewS3
+    User --> SharedAuth
+    User --> SharedApi
+    SharedApi --> SharedDb
+```

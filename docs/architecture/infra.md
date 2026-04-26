@@ -1,5 +1,64 @@
 # Infrastructure Reference
 
+## AWS Deployment Diagram
+
+The diagram below is intended to read like an AWS component view while still
+rendering natively on GitHub via Mermaid.
+
+```mermaid
+flowchart TB
+    User["User browser"]
+
+    subgraph Edge["Edge + Static Hosting"]
+        CF["Amazon CloudFront"]
+        S3["Amazon S3"]
+    end
+
+    subgraph Auth["Identity"]
+        CognitoPool["Cognito User Pool"]
+        CognitoClient["Cognito App Client"]
+        CognitoDomain["Cognito Domain"]
+    end
+
+    subgraph Compute["Serverless Compute"]
+        Api["API Lambda"]
+        Orchestrator["Run Orchestrator Lambda"]
+        Scan["Scan Company Lambda"]
+        Finalize["Finalize Run Lambda"]
+        Notify["Notification Lambda"]
+    end
+
+    subgraph Data["State + Data"]
+        DDB["Amazon DynamoDB"]
+        Param["AWS Systems Manager\nParameter Store"]
+    end
+
+    subgraph Messaging["Messaging + Email"]
+        SNS["Amazon SNS"]
+        SES["Amazon SES"]
+    end
+
+    Scheduler["Amazon EventBridge"]
+    FnUrl["Lambda Function URL"]
+
+    User --> CF
+    CF --> S3
+    User --> CognitoDomain
+    User --> FnUrl
+    FnUrl --> Api
+    Api --> CognitoPool
+    Api --> DDB
+    Api --> Orchestrator
+    Orchestrator --> Scan
+    Scan --> Finalize
+    Finalize --> DDB
+    Finalize --> SNS
+    SNS --> Notify
+    Notify --> SES
+    Notify --> Param
+    Scheduler --> Orchestrator
+```
+
 ## Backend — `career-jump-aws` stack (`career-jump-aws-poc`)
 
 All resources in `us-east-1`. Defined in `template.yaml` (AWS SAM), deployed via `sam deploy`.
@@ -22,6 +81,33 @@ All resources in `us-east-1`. Defined in `template.yaml` (AWS SAM), deployed via
 | EventBridge Scheduler | Weekday schedules | Scans every 3 hrs, Mon–Fri, 6am–9pm ET |
 | CloudWatch Logs | 4 log groups | One per Lambda, 1-day retention |
 | AWS Budgets | Monthly budget | Alerts at 60% + 100% of $5/month |
+
+### Backend Stack UML Component Diagram
+
+```mermaid
+flowchart LR
+    Frontend["Frontend clients"]
+    Auth["Cognito auth"]
+    Url["Lambda Function URL"]
+    Api["API Lambda"]
+    Orch["Orchestrator"]
+    Scan["Scan workers"]
+    Final["Finalize worker"]
+    Data["DynamoDB"]
+    Mail["SNS + SES"]
+    Sched["EventBridge"]
+
+    Frontend --> Auth
+    Frontend --> Url
+    Url --> Api
+    Api --> Data
+    Api --> Orch
+    Orch --> Scan
+    Scan --> Final
+    Final --> Data
+    Final --> Mail
+    Sched --> Orch
+```
 
 ### Amazon Cognito Configuration
 
@@ -47,6 +133,27 @@ COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
 COGNITO_CLIENT_ID=XXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
+### Cognito Provisioning Sequence
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant UI as React app
+    participant Cog as Cognito
+    participant Post as Post-confirm Lambda
+    participant DB as DynamoDB
+    participant SNS as SNS
+
+    User->>UI: Sign up
+    UI->>Cog: SignUp(email, password, custom:username)
+    Cog-->>User: Email verification code
+    User->>UI: Submit verification code
+    UI->>Cog: ConfirmSignUp
+    Cog->>Post: PostConfirmation trigger
+    Post->>DB: Create USER#{sub}#PROFILE
+    Post->>SNS: Publish welcome event
+```
+
 ### Amazon SES Configuration
 
 | Parameter | Value | Notes |
@@ -67,6 +174,24 @@ COGNITO_CLIENT_ID=XXXXXXXXXXXXXXXXXXXXXXXXXX
 SES_FROM_ADDRESS=notifications@career-jump.app
 SES_CONFIGURATION_SET=career-jump-notifications
 SES_REGION=us-east-1
+```
+
+### Notification Delivery Sequence
+
+```mermaid
+sequenceDiagram
+    participant Final as Finalize Run Lambda
+    participant Topic as SNS Topic
+    participant Notify as Notification Lambda
+    participant SSM as Parameter Store
+    participant SES as Amazon SES
+    participant User as Recipient
+
+    Final->>Topic: Publish new_jobs_alert / weekly_digest / welcome
+    Topic->>Notify: Invoke with event payload
+    Notify->>SSM: Load runtime config
+    Notify->>SES: SendTemplatedEmail
+    SES-->>User: Deliver email
 ```
 
 ### Additional Lambda Resources (Notifications)
@@ -90,7 +215,8 @@ All Lambdas: Node.js 22.x, arm64, esbuild (CJS, es2022, minified).
 
 ## React Frontend — `career-jump-web-poc` stack (new, isolated)
 
-> **Not yet deployed.** These are the planned resources.
+> **Live as an isolated deployment.** These resources stay separate from the
+> older vanilla frontend stack.
 
 ### Naming Convention
 
@@ -120,6 +246,17 @@ git push → GitHub Actions workflow
   → npm run build
     → dist/ uploaded to s3://cj-web-static-poc-<acct>/
       → CloudFront invalidation (/* paths)
+```
+
+### Frontend Hosting Diagram
+
+```mermaid
+flowchart LR
+    Dev["GitHub repo / local build"] --> Build["Vite production build"]
+    Build --> Dist["dist/ assets"]
+    Dist --> Bucket["S3 bucket\ncj-web-static-poc-<acct>"]
+    Bucket --> CDN["CloudFront distribution"]
+    CDN --> Browser["User browser"]
 ```
 
 ### What Stays Shared

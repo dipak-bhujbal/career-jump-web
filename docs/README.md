@@ -26,6 +26,9 @@ New to the project? Start here.
 | [API Flows](architecture/api-flows.md) | Every `/api/*` endpoint, request/response shape, auth header requirements |
 | [Feature Logic](architecture/features.md) | How each major feature works — drawer, notes, kanban, split pane |
 
+All architecture pages use GitHub-native Mermaid so the diagrams render directly
+in the repository UI without extra tooling.
+
 ### Decisions & Planning
 
 | Doc | What it covers |
