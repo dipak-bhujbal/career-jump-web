@@ -1,17 +1,14 @@
 # Career Jump — Web (React rebuild)
 
 A ground-up React rewrite of the Career Jump frontend. The vanilla
-`career-jump-aws/public/` app stays in production; this repo is a
-parallel build that you can preview, polish, and cut over to when
-ready.
+`career-jump-aws/public/` app stays in production, and this repo is a
+separately deployed React frontend that can be validated in parallel.
 
 ## Status
 
-- **Week 1 (in progress):** scaffold + Configuration page end-to-end
-  with the new registry-backed company picker as the proof-of-concept.
-- Week 2: Dashboard, Available Jobs (table + filters + drawer),
-  Applied Jobs.
-- Week 3: Action Plan, notes/timeline, polish, parity QA, deploy.
+- React frontend is deployed independently to its own S3 + CloudFront stack.
+- Real Cognito auth is enabled in production builds when the Cognito env vars are set.
+- The vanilla app remains available on its original stack while this app hardens toward cutover.
 
 ## Stack
 
@@ -74,9 +71,8 @@ npx @tanstack/router-cli generate   # regenerate routeTree.gen.ts (rare; vite pl
 
 ## Architecture notes
 
-- **Auth:** `src/lib/auth.ts` reads the same `career-jump-aws-auth` token
-  storage key as the vanilla app, so logging in once carries across.
-  Full PKCE rebuild lands in week 2.
+- **Auth:** `src/lib/auth.ts` uses Cognito directly in deployed builds and falls back
+  to mock mode only when the Cognito env vars are missing or `VITE_USE_MOCKS=true`.
 - **API types:** hand-typed in `src/lib/api.ts` for the routes the
   rebuild touches. We can swap to `openapi-fetch` codegen against
   `/api/openapi.json` once the surface stabilises.
@@ -103,5 +99,5 @@ npx @tanstack/router-cli generate   # regenerate routeTree.gen.ts (rare; vite pl
 - **PR preview deploys.** Skipped to keep the runbook simple; can
   revisit once you settle on a CI strategy.
 
-See [`docs/RELEASE_RUNBOOK.md`](./docs/RELEASE_RUNBOOK.md) for the
-deploy + release steps the user runs by hand.
+See [docs/DEPLOY.md](./docs/DEPLOY.md) for the current manual deploy steps and
+[docs/RELEASE_RUNBOOK.md](./docs/RELEASE_RUNBOOK.md) for release workflow details.
