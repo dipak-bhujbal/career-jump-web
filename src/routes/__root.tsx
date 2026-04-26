@@ -53,15 +53,16 @@ function AppShell() {
 function AuthGate() {
   const { status } = useAuth();
   const { pathname } = useLocation();
-  const navigate = useNavigate();
 
   // Redirect after render so protected routes do not flash a blank screen
   // while TanStack Router processes the location change.
   useEffect(() => {
     if (status === "unauthenticated" && !isPublicPath(pathname)) {
-      void navigate({ to: "/login" });
+      // Use a hard same-origin redirect here because the blank-screen bug
+      // occurs before the SPA can reliably complete a client-side transition.
+      window.location.replace("/login");
     }
-  }, [navigate, pathname, status]);
+  }, [pathname, status]);
 
   if (isPublicPath(pathname)) return <Outlet />;
 
@@ -77,7 +78,11 @@ function AuthGate() {
   }
 
   if (status === "unauthenticated") {
-    return null;
+    return (
+      <div className="h-screen flex items-center justify-center bg-[hsl(var(--background))] text-sm text-[hsl(var(--muted-foreground))]">
+        Redirecting to sign in…
+      </div>
+    );
   }
 
   return <AppShell />;

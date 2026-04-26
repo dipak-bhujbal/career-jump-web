@@ -32,9 +32,9 @@ function SignupRoute() {
   // render-time navigation loop on first load.
   useEffect(() => {
     if (status === "authenticated") {
-      void navigate({ to: "/" });
+      window.location.replace("/");
     }
-  }, [navigate, status]);
+  }, [status]);
 
   if (status === "authenticated") return null;
 

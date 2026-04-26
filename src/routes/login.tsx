@@ -23,9 +23,9 @@ function LoginRoute() {
   // auth gate and route both try to navigate during the same paint.
   useEffect(() => {
     if (status === "authenticated") {
-      void navigate({ to: "/" });
+      window.location.replace("/");
     }
-  }, [navigate, status]);
+  }, [status]);
 
   if (status === "authenticated") return null;
 
