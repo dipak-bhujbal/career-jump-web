@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, UserPlus, CheckCircle2, XCircle } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -28,10 +28,15 @@ function SignupRoute() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  if (status === "authenticated") {
-    void navigate({ to: "/" });
-    return null;
-  }
+  // Redirect after the component commits so authenticated users do not hit a
+  // render-time navigation loop on first load.
+  useEffect(() => {
+    if (status === "authenticated") {
+      void navigate({ to: "/" });
+    }
+  }, [navigate, status]);
+
+  if (status === "authenticated") return null;
 
   const rules = {
     length: password.length >= 8,

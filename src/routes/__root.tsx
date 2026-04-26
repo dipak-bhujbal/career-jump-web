@@ -8,6 +8,7 @@
  *   - unauthenticated on protected route → redirect to /login
  */
 import { Outlet, createRootRoute, useNavigate, useLocation } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ToastViewport } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/command-palette";
@@ -54,6 +55,14 @@ function AuthGate() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
+  // Redirect after render so protected routes do not flash a blank screen
+  // while TanStack Router processes the location change.
+  useEffect(() => {
+    if (status === "unauthenticated" && !isPublicPath(pathname)) {
+      void navigate({ to: "/login" });
+    }
+  }, [navigate, pathname, status]);
+
   if (isPublicPath(pathname)) return <Outlet />;
 
   if (status === "loading") {
@@ -68,7 +77,6 @@ function AuthGate() {
   }
 
   if (status === "unauthenticated") {
-    void navigate({ to: "/login" });
     return null;
   }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -19,10 +19,15 @@ function LoginRoute() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  if (status === "authenticated") {
-    void navigate({ to: "/" });
-    return null;
-  }
+  // Keep redirect side effects out of render to avoid blank screens when the
+  // auth gate and route both try to navigate during the same paint.
+  useEffect(() => {
+    if (status === "authenticated") {
+      void navigate({ to: "/" });
+    }
+  }, [navigate, status]);
+
+  if (status === "authenticated") return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
