@@ -1,15 +1,13 @@
 /**
- * Root route — wraps every page with the app shell.
+ * Root route — wraps every page with auth + app shell.
  *
- * Mounts global UI:
- *   - Sidebar (nav + scan/cache action buttons)
- *   - ToastViewport (Sonner)
- *   - CommandPalette (⌘K)
- *   - KeyboardHelp (?)
- *
- * Also registers global navigation hotkeys (g→d / g→j / g→a / g→p / g→c).
+ * Auth flow:
+ *   - /login, /signup, /verify-email, /forgot-password, /privacy → public
+ *   - all other routes → require authentication
+ *   - while auth is loading → full-page spinner
+ *   - unauthenticated on protected route → redirect to /login
  */
-import { Outlet, createRootRoute, useNavigate } from "@tanstack/react-router";
+import { Outlet, createRootRoute, useNavigate, useLocation } from "@tanstack/react-router";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ToastViewport } from "@/components/ui/toast";
 import { CommandPalette } from "@/components/command-palette";
@@ -17,8 +15,16 @@ import { KeyboardHelp } from "@/components/keyboard-help";
 import { MeteorBackground } from "@/components/meteor-background";
 import { RunProgress } from "@/components/run-progress";
 import { useHotkey } from "@/lib/hotkeys";
+import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
+import { Sparkles } from "lucide-react";
 
-function RootLayout() {
+const PUBLIC_PATHS = ["/login", "/signup", "/verify-email", "/forgot-password", "/privacy"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+}
+
+function AppShell() {
   const navigate = useNavigate();
   useHotkey({ id: "go-dashboard", description: "Go to Dashboard", category: "Navigate", sequence: ["g", "d"] }, () => navigate({ to: "/" }));
   useHotkey({ id: "go-jobs", description: "Go to Available Jobs", category: "Navigate", sequence: ["g", "j"] }, () => navigate({ to: "/jobs" }));
@@ -32,7 +38,6 @@ function RootLayout() {
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <RunProgress />
-        {/* Inner scroll wrapper: topbar sticky top-0 works correctly inside a block overflow-y-auto container */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           <Outlet />
         </div>
@@ -41,6 +46,40 @@ function RootLayout() {
       <CommandPalette />
       <KeyboardHelp />
     </div>
+  );
+}
+
+function AuthGate() {
+  const { status } = useAuth();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  if (isPublicPath(pathname)) return <Outlet />;
+
+  if (status === "loading") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[hsl(var(--background))]">
+        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 grid place-items-center text-white shadow-lg animate-pulse">
+          <Sparkles size={24} />
+        </div>
+        <p className="text-sm text-[hsl(var(--muted-foreground))] animate-pulse">Loading…</p>
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    void navigate({ to: "/login" });
+    return null;
+  }
+
+  return <AppShell />;
+}
+
+function RootLayout() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 }
 

@@ -9,15 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as LogsRouteImport } from './routes/logs'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as ConfigurationRouteImport } from './routes/configuration'
 import { Route as AppliedRouteImport } from './routes/applied'
 import { Route as IndexRouteImport } from './routes/index'
 
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -26,6 +41,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlanRoute = PlanRouteImport.update({
@@ -38,9 +58,19 @@ const LogsRoute = LogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JobsRoute = JobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigurationRoute = ConfigurationRouteImport.update({
@@ -63,32 +93,47 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/applied': typeof AppliedRoute
   '/configuration': typeof ConfigurationRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/jobs': typeof JobsRoute
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/plan': typeof PlanRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/applied': typeof AppliedRoute
   '/configuration': typeof ConfigurationRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/jobs': typeof JobsRoute
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/plan': typeof PlanRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/applied': typeof AppliedRoute
   '/configuration': typeof ConfigurationRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/jobs': typeof JobsRoute
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/plan': typeof PlanRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,46 +141,80 @@ export interface FileRouteTypes {
     | '/'
     | '/applied'
     | '/configuration'
+    | '/forgot-password'
     | '/jobs'
+    | '/login'
     | '/logs'
     | '/plan'
+    | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
+    | '/verify-email'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/applied'
     | '/configuration'
+    | '/forgot-password'
     | '/jobs'
+    | '/login'
     | '/logs'
     | '/plan'
+    | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
+    | '/verify-email'
   id:
     | '__root__'
     | '/'
     | '/applied'
     | '/configuration'
+    | '/forgot-password'
     | '/jobs'
+    | '/login'
     | '/logs'
     | '/plan'
+    | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
+    | '/verify-email'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppliedRoute: typeof AppliedRoute
   ConfigurationRoute: typeof ConfigurationRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   JobsRoute: typeof JobsRoute
+  LoginRoute: typeof LoginRoute
   LogsRoute: typeof LogsRoute
   PlanRoute: typeof PlanRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -148,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plan': {
@@ -164,11 +250,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jobs': {
       id: '/jobs'
       path: '/jobs'
       fullPath: '/jobs'
       preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuration': {
@@ -199,11 +299,16 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppliedRoute: AppliedRoute,
   ConfigurationRoute: ConfigurationRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   JobsRoute: JobsRoute,
+  LoginRoute: LoginRoute,
   LogsRoute: LogsRoute,
   PlanRoute: PlanRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

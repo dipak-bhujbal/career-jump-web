@@ -1,5 +1,48 @@
 # System Architecture Overview
 
+## Multi-Tenant SaaS Architecture
+
+Career Jump has evolved from a single-user personal tool into a multi-tenant SaaS platform. Each user is a fully isolated tenant — their data is scoped to a unique partition key prefix in the shared DynamoDB table, derived from their Cognito `sub` claim. The system requires no infrastructure changes to onboard new tenants; isolation is enforced in application code at the Lambda layer.
+
+```mermaid
+flowchart TD
+    Browser["User Browser\n(React 19 + Vite + TanStack)"]
+    CF["AWS CloudFront\ncj-web-cdn-poc\n(HTTPS, global edge)"]
+    S3["AWS S3\ncj-web-static-poc\n(React SPA assets)"]
+    LambdaURL["Lambda Function URL\n(HTTPS, no API Gateway)"]
+    Cognito["Amazon Cognito\nUser Pool\n(auth + tenant identity)"]
+    Lambda["API Lambda\n(JWT validation → sub extraction)"]
+    DDB["DynamoDB\ncareer-jump-aws-poc-state\n(single table, multi-tenant)"]
+    SES["Amazon SES\n(templated email notifications)"]
+    EB["EventBridge Scheduler\n(automated scans + weekly digest)"]
+
+    Browser -->|"HTTPS"| CF
+    CF --> S3
+    Browser -->|"Authorization: Bearer IdToken"| LambdaURL
+    LambdaURL --> Lambda
+    Lambda -->|"Validate JWT + extract sub"| Cognito
+    Lambda -->|"Query USER#{sub}#..."| DDB
+    Lambda -->|"Send notification"| SES
+    EB -->|"Trigger scan / digest"| Lambda
+
+    subgraph TenantIsolation["Tenant Data Isolation (DynamoDB)"]
+        T1["USER#aaa-111#JOBS\nUSER#aaa-111#APPLIED\nUSER#aaa-111#CONFIG"]
+        T2["USER#bbb-222#JOBS\nUSER#bbb-222#APPLIED\nUSER#bbb-222#CONFIG"]
+    end
+
+    DDB --> TenantIsolation
+```
+
+**Key architectural properties:**
+- Tenant identity is the Cognito `sub` UUID — immutable, JWT-verified, never client-supplied
+- All DynamoDB operations are key-prefix scoped; cross-tenant access is architecturally impossible via the user-facing API
+- Auth is Amazon Cognito (email + password, SRP protocol, OTP email verification)
+- Email notifications flow through Amazon SES with user-controlled opt-in/opt-out preferences
+- See `docs/architecture/multi-tenancy.md` for the full isolation model
+- See `docs/architecture/auth.md` for the complete authentication and authorization design
+
+---
+
 ## Product Summary
 
 Career Jump is a personal job-monitoring tool that scans company career pages (via ATS APIs), filters postings by title/location/keywords, and manages a full application pipeline (Applied → Interview → Offer). Owned and operated by a single user (Dipak Bhujbal).

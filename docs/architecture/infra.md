@@ -23,6 +23,61 @@ All resources in `us-east-1`. Defined in `template.yaml` (AWS SAM), deployed via
 | CloudWatch Logs | 4 log groups | One per Lambda, 1-day retention |
 | AWS Budgets | Monthly budget | Alerts at 60% + 100% of $5/month |
 
+### Amazon Cognito Configuration
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| User Pool name | `career-jump-aws-poc-users` | Defined in `template.yaml` |
+| Sign-in alias | `email` | Users log in with email address |
+| Self-service signup | Enabled | Users create their own accounts |
+| Email verification | Required (OTP code, 24h expiry) | 6-digit code sent by Cognito/SES |
+| Password policy | 8+ chars, upper, lower, digit | SOC2 CC6.1 minimum |
+| MFA | Optional TOTP | Upgrade path for SOC2 Type II |
+| App client type | Public (no client secret) | Required for SPA |
+| Auth flows | `USER_SRP_AUTH`, `REFRESH_TOKEN_AUTH` | SRP: no password on wire |
+| ID token validity | 1 hour | Short window limits stolen token exposure |
+| Access token validity | 1 hour | Same as ID token |
+| Refresh token validity | 30 days | Rolling; revoked on logout/password change |
+| Hosted UI | Disabled | Custom UI per ADR-005 |
+| Lambda triggers | Post-confirmation (tenant provision) | Creates USER#{sub}#PROFILE on first confirm |
+
+**Cognito environment variables in API Lambda:**
+```
+COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
+COGNITO_CLIENT_ID=XXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+### Amazon SES Configuration
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Region | `us-east-1` | Same region as all other resources |
+| Domain identity | `career-jump.app` | Verified via DNS TXT + DKIM records |
+| Sending addresses | `notifications@career-jump.app`, `digest@career-jump.app` | Domain-verified |
+| Configuration Set | `career-jump-notifications` | Attached to all `SendTemplatedEmail` calls |
+| Open/click tracking | Disabled | CCPA + DNT compliance |
+| Bounce/complaint feedback | Enabled → SNS `career-jump-ses-feedback` | Triggers Bounce Handler Lambda |
+| Current mode | Sandbox | Upgrade to production before user launch |
+| DKIM | 3 x 2048-bit RSA CNAME records | Auto-rotated by SES |
+| SPF | `v=spf1 include:amazonses.com ~all` | DNS TXT record on `career-jump.app` |
+| DMARC | `v=DMARC1; p=quarantine` | DNS TXT record on `_dmarc.career-jump.app` |
+
+**SES environment variables in Notification Lambda:**
+```
+SES_FROM_ADDRESS=notifications@career-jump.app
+SES_CONFIGURATION_SET=career-jump-notifications
+SES_REGION=us-east-1
+```
+
+### Additional Lambda Resources (Notifications)
+
+| Resource | Name | Purpose |
+|----------|------|---------|
+| Lambda | `career-jump-aws-poc-notify` | Handles all email sends; triggered by DynamoDB Streams + SNS |
+| Lambda | `career-jump-aws-poc-bounce-handler` | Processes SES bounce/complaint feedback from SNS |
+| SNS Topic | `career-jump-aws-poc-status-changes` | Application status change events (Kanban moves) |
+| SNS Topic | `career-jump-ses-feedback` | SES bounce/complaint notifications |
+
 ### Services Intentionally Excluded
 
 API Gateway, Step Functions, NAT Gateway, RDS, ALB, EC2, Fargate, OpenSearch, ElastiCache.

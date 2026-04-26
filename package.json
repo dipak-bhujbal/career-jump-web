@@ -1,7 +1,7 @@
 {
   "name": "career-jump-web",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,6 +24,7 @@
     "@tanstack/react-router": "^1.168.24",
     "@tanstack/router-plugin": "^1.167.27",
     "@types/canvas-confetti": "^1.9.0",
+    "amazon-cognito-identity-js": "^6.3.16",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

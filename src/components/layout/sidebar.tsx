@@ -1,7 +1,8 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, CheckSquare, Target, Settings, Sparkles, ScrollText } from "lucide-react";
+import { LayoutDashboard, Briefcase, CheckSquare, Target, Settings, Sparkles, ScrollText, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarActions } from "./sidebar-actions";
+import { useAuth } from "@/features/auth/AuthContext";
 
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -14,10 +15,15 @@ const items = [
 
 export function Sidebar() {
   const { pathname } = useLocation();
+  const { user, signOut } = useAuth();
+
+  const initial = (user?.username?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
+
   return (
     <aside className="w-60 shrink-0 border-r border-[hsl(var(--border))] bg-[hsl(var(--card))]/40 backdrop-blur flex flex-col">
+      {/* Logo */}
       <div className="px-5 py-5 flex items-center gap-2.5 border-b border-[hsl(var(--border))]">
-        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 grid place-items-center text-white shadow-sm">
+        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 grid place-items-center text-white shadow-sm shrink-0">
           <Sparkles size={18} />
         </div>
         <div>
@@ -25,6 +31,8 @@ export function Sidebar() {
           <div className="text-[12.5px] text-[hsl(var(--muted-foreground))]">Private job radar</div>
         </div>
       </div>
+
+      {/* Nav */}
       <nav className="p-2 flex flex-col gap-0.5 flex-1 overflow-y-auto">
         {items.map((it) => {
           const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
@@ -46,9 +54,34 @@ export function Sidebar() {
           );
         })}
       </nav>
+
       <SidebarActions />
-      <div className="p-3 text-[12.5px] text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--border))]">
-        v5.0.0-alpha · React rebuild
+
+      {/* User footer */}
+      <div className="p-3 border-t border-[hsl(var(--border))]">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-2 group">
+          <Link
+            to="/profile"
+            className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          >
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 grid place-items-center text-white text-xs font-bold shrink-0">
+              {initial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium truncate">{user?.username || "Account"}</div>
+              <div className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{user?.email || ""}</div>
+            </div>
+            <User size={13} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => { if (window.confirm("Sign out?")) signOut(); }}
+            title="Sign out"
+            className="shrink-0 text-[hsl(var(--muted-foreground))] hover:text-rose-500 transition-colors p-1"
+          >
+            <LogOut size={13} />
+          </button>
+        </div>
       </div>
     </aside>
   );
