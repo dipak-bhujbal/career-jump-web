@@ -56,7 +56,6 @@ export function AuthShell({ title, description, children, footer, width = "sm" }
         <p className="mt-6 text-center text-xs text-[hsl(var(--muted-foreground))]/60">
           By continuing, you agree to our{" "}
           <Link to="/privacy" className="underline hover:text-[hsl(var(--foreground))]">Privacy Policy</Link>.
-          {" "}Career Jump is CCPA compliant.
         </p>
       </div>
     </div>
