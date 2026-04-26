@@ -7,6 +7,9 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 const apiTarget = process.env.VITE_API_URL || "http://localhost:3000";
 
 export default defineConfig({
+  define: {
+    global: "globalThis",
+  },
   plugins: [
     TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
     react(),
