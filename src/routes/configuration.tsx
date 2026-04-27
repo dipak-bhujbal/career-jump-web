@@ -80,7 +80,11 @@ function ConfigurationRoute() {
         // almost certainly added via the registry picker — infer the display label.
         return serverCompanies.map((c) => ({
           ...c,
-          isRegistry: c.isRegistry ?? (Boolean(c.registryAts) || (Boolean(c.source) && Boolean(c.sampleUrl))),
+          // Backfill: infer registry status from any available signal because
+          // career-jump-aws doesn't persist isRegistry/registryAts/registryTier.
+          // Using OR across all three signals covers old entries where source or
+          // sampleUrl may be null (e.g. companies added before source was normalised).
+          isRegistry: Boolean(c.registryAts || c.source || c.sampleUrl),
           registryAts: c.registryAts || (c.source ? formatAtsLabel(c.source) : ""),
         }));
       }
@@ -146,7 +150,9 @@ function ConfigurationRoute() {
       {
         company: entry.company,
         enabled: true,
-        source: normalizeRegistryAts(entry.ats),
+        // normalizeRegistryAts returns "" for unknown ATS types; fall back to
+        // the raw lowercased ID so source is never saved as empty for registry entries.
+        source: normalizeRegistryAts(entry.ats) || String(entry.ats ?? "").toLowerCase().replace(/[^a-z0-9]+/g, ""),
         sampleUrl: entry.sample_url || entry.board_url || "",
         isRegistry: true,
         registryAts: entry.ats ?? "",

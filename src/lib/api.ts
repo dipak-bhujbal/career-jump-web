@@ -18,8 +18,15 @@ const baseUrl = (() => {
   return raw ? trimTrailingSlash(raw) : "";
 })();
 
-async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = path.startsWith("/") ? `${baseUrl}${path}` : path;
+// Separate registry base URL — points at the career-jump-web-poc-registry Lambda.
+// Falls back to the main apiBaseUrl so the app works before the registry stack is deployed.
+const registryBaseUrl = (() => {
+  const raw = runtimeValue("registryBaseUrl") || runtimeValue("apiBaseUrl") || envValue("VITE_API_BASE_URL");
+  return raw ? trimTrailingSlash(raw) : "";
+})();
+
+async function apiFetch<T>(path: string, init: RequestInit = {}, base = baseUrl): Promise<T> {
+  const url = path.startsWith("/") ? `${base}${path}` : path;
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (isAuthEnabled()) {
@@ -47,6 +54,13 @@ export const api = {
   post: <T,>(path: string, body?: unknown) => apiFetch<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T,>(path: string, body?: unknown) => apiFetch<T>(path, { method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
   del: <T,>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+};
+
+// Registry-specific client — uses registryBaseUrl when configured so registry
+// calls can be routed to the dedicated career-jump-web-poc-registry Lambda
+// without changing the main apiBaseUrl or redeploying CloudFront.
+export const registryApi = {
+  get: <T,>(path: string) => apiFetch<T>(path, {}, registryBaseUrl),
 };
 
 export type RegistryEntry = {

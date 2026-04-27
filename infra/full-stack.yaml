@@ -73,7 +73,7 @@ Resources:
       Parameters:
         AppName: !Ref FrontendAppName
         Stage: !Ref Stage
-        RegistryApiDomainName: !GetAtt RegistryApiStack.Outputs.ApiGatewayDomainName
+        RegistryApiDomainName: !GetAtt RegistryApiStack.Outputs.FunctionUrlDomainName
       Tags:
         - Key: App
           Value: !Ref AppName
@@ -101,8 +101,8 @@ Resources:
         - Key: Component
           Value: auth
 
-  # ---- 3. Registry API (Lambda + HTTP API Gateway) --------------------------
-  # Needs Cognito (JWT authorizer) and BackendFoundation (registry table).
+  # ---- 3. Registry API (Lambda Function URL) ---------------------------------
+  # Needs Cognito (JWT validation) and BackendFoundation (registry table).
   # FrontendStack depends on this for the CloudFront /api/registry/* behavior.
   RegistryApiStack:
     Type: AWS::CloudFormation::Stack
@@ -265,12 +265,12 @@ Outputs:
 
   # ---- Registry API ----
   RegistryApiUrl:
-    Description: Base URL of the registry HTTP API Gateway.
-    Value: !GetAtt RegistryApiStack.Outputs.ApiGatewayUrl
+    Description: Lambda Function URL for the registry API.
+    Value: !GetAtt RegistryApiStack.Outputs.FunctionUrl
 
   RegistryApiDomainName:
-    Description: Bare domain of the registry API Gateway (used as CloudFront origin).
-    Value: !GetAtt RegistryApiStack.Outputs.ApiGatewayDomainName
+    Description: Bare domain of the registry Lambda Function URL (used as CloudFront origin).
+    Value: !GetAtt RegistryApiStack.Outputs.FunctionUrlDomainName
 
   RegistryLambdaArn:
     Description: ARN of the registry Lambda function.

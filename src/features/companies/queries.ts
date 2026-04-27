@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type ConfigEnvelope, type RegistryEntry, type RegistryMeta, type CompanyConfig } from "@/lib/api";
+import { api, registryApi, type ConfigEnvelope, type RegistryEntry, type RegistryMeta, type CompanyConfig } from "@/lib/api";
 import { REGISTRY_META } from "@/data/companies-registry";
 
 function localRegistryMeta(): RegistryMeta {
@@ -36,8 +36,8 @@ export function useRegistryMeta() {
     queryKey: registryMetaKey,
     queryFn: async () => {
       try {
-        const result = await api.get<RegistryMeta>("/api/registry/meta");
-        if ((result.counts?.total ?? 0) === 0) return localRegistryMeta();
+        const result = await registryApi.get<RegistryMeta>("/api/registry/meta");
+        if ((result.counts?.total ?? 0) < 100) return localRegistryMeta();
         return result;
       } catch {
         return localRegistryMeta();
@@ -56,7 +56,7 @@ export function useRegistrySearch(q: { search?: string; ats?: string; tier?: str
       if (q.ats) p.set("ats", q.ats);
       if (q.tier) p.set("tier", q.tier);
       p.set("limit", "50");
-      return api.get<{ ok: boolean; total: number; entries: RegistryEntry[] }>(`/api/registry/companies?${p.toString()}`);
+      return registryApi.get<{ ok: boolean; total: number; entries: RegistryEntry[] }>(`/api/registry/companies?${p.toString()}`);
     },
     enabled: q.enabled !== false,
     placeholderData: (prev) => prev,

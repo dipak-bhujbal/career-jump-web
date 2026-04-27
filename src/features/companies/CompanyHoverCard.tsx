@@ -16,7 +16,7 @@ import { ExternalLink } from "lucide-react";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Badge } from "@/components/ui/badge";
 import { TierTag } from "@/components/ui/tier-tag";
-import { api, type RegistryEntry } from "@/lib/api";
+import { registryApi, type RegistryEntry } from "@/lib/api";
 import { formatAtsLabel, companyKey } from "@/lib/utils";
 import { relativeTime } from "@/lib/format";
 
@@ -37,7 +37,7 @@ export function CompanyHoverCard({ company, children }: CompanyHoverCardProps) {
 
   const entry = useQuery({
     queryKey: ["registry", "company", companyKey(company)],
-    queryFn: () => api.get<{ ok: boolean; entry: RegistryEntry }>(`/api/registry/companies/${encodeURIComponent(company)}`).then((r) => r.entry).catch(() => null),
+    queryFn: () => registryApi.get<{ ok: boolean; entry: RegistryEntry }>(`/api/registry/companies/${encodeURIComponent(company)}`).then((r) => r.entry).catch(() => null),
     enabled: open,
     staleTime: 60_000,
   });

@@ -7,6 +7,9 @@
  */
 export interface CareerJumpAwsRuntimeConfig {
   apiBaseUrl?: string;
+  /** Separate Lambda Function URL for the registry API (career-jump-web-poc-registry stack).
+   *  When set, /api/registry/* calls go here instead of apiBaseUrl. */
+  registryBaseUrl?: string;
   cognitoDomain?: string;
   cognitoClientId?: string;
   cognitoUserPoolId?: string;
