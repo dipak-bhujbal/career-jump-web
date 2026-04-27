@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type AppliedJobsEnvelope, type AppliedStatus } from "@/lib/api";
+import { api, type AppliedJob, type AppliedJobsEnvelope, type AppliedStatus, type Job } from "@/lib/api";
 
 export type AppliedFilter = {
   companies?: string[];
@@ -14,6 +14,59 @@ export type AppliedFilter = {
 
 export const appliedKey = (f: AppliedFilter) => ["applied", f] as const;
 
+type RawAppliedJob = Partial<AppliedJob> & {
+  company?: string;
+  jobTitle?: string;
+  source?: string;
+  location?: string;
+  url?: string;
+  postedAt?: string;
+  postedAtDate?: string;
+  isNew?: boolean;
+  isUpdated?: boolean;
+};
+
+function normalizeAppliedJob(row: RawAppliedJob): AppliedJob {
+  const nestedJob = row.job ?? {} as Partial<Job>;
+  const jobKey = row.jobKey ?? `${row.source ?? nestedJob.source ?? "manual"}:${row.company ?? nestedJob.company ?? "Unknown"}:${row.url ?? nestedJob.url ?? ""}`;
+  const job: Job = {
+    jobKey,
+    company: nestedJob.company ?? row.company ?? "Unknown",
+    source: nestedJob.source ?? row.source ?? "manual",
+    jobTitle: nestedJob.jobTitle ?? row.jobTitle ?? "Untitled role",
+    postedAt: nestedJob.postedAt ?? row.postedAt,
+    postedAtDate: nestedJob.postedAtDate ?? row.postedAtDate,
+    location: nestedJob.location ?? row.location,
+    url: nestedJob.url ?? row.url ?? "",
+    isNew: nestedJob.isNew ?? row.isNew,
+    isUpdated: nestedJob.isUpdated ?? row.isUpdated,
+  };
+
+  return {
+    ...row,
+    jobKey,
+    appliedAt: row.appliedAt ?? "",
+    status: row.status ?? "Applied",
+    job,
+    notes: row.notes,
+    noteRecords: row.noteRecords ?? [],
+    interviewRounds: row.interviewRounds ?? [],
+    timeline: row.timeline ?? [],
+    lastStatusChangedAt: row.lastStatusChangedAt,
+  };
+}
+
+function normalizeAppliedEnvelope(data: AppliedJobsEnvelope): AppliedJobsEnvelope {
+  // The AWS API currently returns flattened application rows; the React UI
+  // consumes a nested `job` object. Normalize once at the query boundary so all
+  // pages/widgets share the same applied-jobs source of truth.
+  const jobs = (data.jobs ?? []).map((row) => normalizeAppliedJob(row as RawAppliedJob));
+  const companyOptions = data.companyOptions?.length
+    ? data.companyOptions
+    : Array.from(new Set(jobs.map((job) => job.job.company))).sort();
+  return { ...data, jobs, companyOptions };
+}
+
 export function useApplied(filter: AppliedFilter) {
   return useQuery({
     queryKey: appliedKey(filter),
@@ -23,7 +76,7 @@ export function useApplied(filter: AppliedFilter) {
       if (filter.keyword) p.set("keyword", filter.keyword);
       for (const s of filter.statuses ?? []) if (s) p.append("status", s);
       const qs = p.toString();
-      return api.get<AppliedJobsEnvelope>(`/api/applied-jobs${qs ? `?${qs}` : ""}`);
+      return api.get<AppliedJobsEnvelope>(`/api/applied-jobs${qs ? `?${qs}` : ""}`).then(normalizeAppliedEnvelope);
     },
     staleTime: 15_000,
   });
