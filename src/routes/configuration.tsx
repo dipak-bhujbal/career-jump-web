@@ -92,17 +92,21 @@ function ConfigurationRoute() {
     [baseline, draftCompanies, baselineKeywords, draftKeywords],
   );
 
-  // We keep the internal `isRegistry` distinction so we can render
-  // the auto-discovered ATS/URL badge — but the UI never says "registry".
-  const trackedFromCatalog = draftCompanies.filter((c) => c.isRegistry).length;
-  const trackedCustom = draftCompanies.filter((c) => !c.isRegistry && c.company).length;
+  // A company is "auto-tracked" if it came from the registry picker.
+  // Check isRegistry first; fall back to registryAts/registryTier since
+  // some backends don't persist the isRegistry boolean but do persist the
+  // registry metadata fields.
+  const isFromRegistry = (c: { isRegistry?: boolean; registryAts?: string; registryTier?: string }) =>
+    !!(c.isRegistry || c.registryAts || c.registryTier);
+  const trackedFromCatalog = draftCompanies.filter(isFromRegistry).length;
+  const trackedCustom = draftCompanies.filter((c) => !isFromRegistry(c) && c.company).length;
   void registryMeta;
 
   const visibleCompanies = useMemo(() => {
     const scanOverrides = config.data?.companyScanOverrides ?? {};
     let list = draftCompanies;
-    if (tab === "registry") list = list.filter((c) => c.isRegistry);
-    else if (tab === "custom") list = list.filter((c) => !c.isRegistry);
+    if (tab === "registry") list = list.filter(isFromRegistry);
+    else if (tab === "custom") list = list.filter((c) => !isFromRegistry(c));
     if (companySearch.trim()) {
       const q = companySearch.trim().toLowerCase();
       list = list.filter((c) => c.company.toLowerCase().includes(q));

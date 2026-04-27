@@ -6,7 +6,7 @@
 import type {
   AppliedJob, Job, RegistryEntry, RegistryMeta, RuntimeConfig,
 } from "@/lib/api";
-import registryData, { REGISTRY_META } from "@/data/companies-registry";
+import { REGISTRY_META } from "@/data/companies-registry";
 
 const NOW = Date.now();
 const HOUR = 60 * 60 * 1000;
@@ -178,7 +178,7 @@ export function buildRegistryMeta(): RegistryMeta {
 }
 
 export function buildRegistryEntries(search?: string, ats?: string, tier?: string): RegistryEntry[] {
-  let entries: RegistryEntry[] = registryData.map((c, i) => ({
+  let entries: RegistryEntry[] = seedCompanies.map((c, i) => ({
     rank: i + 1,
     sheet: "Registry",
     company: c.company,

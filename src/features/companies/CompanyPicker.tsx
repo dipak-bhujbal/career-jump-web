@@ -128,7 +128,15 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
               Type a company name to search {totalRegistry > 0 ? `${totalRegistry.toLocaleString()} companies` : "the registry"}.
             </div>
           )}
-          {hasFilter && results.data?.entries.length === 0 && !results.isFetching && (
+          {hasFilter && results.isError && !results.isFetching && (
+            <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+              Search requires a connection to the registry.{" "}
+              <button className="underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>
+                Add a custom company
+              </button>{" "}instead.
+            </div>
+          )}
+          {hasFilter && !results.isError && results.data?.entries.length === 0 && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
               No matches. Try a different search or
               <button className="ml-1 underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>

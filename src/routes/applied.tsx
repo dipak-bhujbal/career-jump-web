@@ -156,7 +156,7 @@ function AppliedRoute() {
   }, [data]);
 
   const filteredJobs = useMemo(() => {
-    let list = data?.jobs ?? [];
+    let list = (data?.jobs ?? []).filter((j) => j.job != null);
     if (selectedStatuses.length > 0) list = list.filter((j) => selectedStatuses.includes(j.status));
     if (location.trim()) {
       const loc = location.trim().toLowerCase();
