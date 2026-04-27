@@ -159,7 +159,7 @@ function LogsRoute() {
                 <label className="text-sm font-medium">Search</label>
                 <Input
                   value={filter.q ?? ""}
-                  onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
+                  onChange={(e) => setFilter((f: LogsFilter) => ({ ...f, q: e.target.value }))}
                   placeholder="message, event, company…"
                 />
               </div>
@@ -168,7 +168,7 @@ function LogsRoute() {
                 <div className="flex items-center gap-1">
                   <Select
                     value={filter.runId ?? ""}
-                    onChange={(e) => setFilter((f) => ({ ...f, runId: e.target.value }))}
+                    onChange={(e) => setFilter((f: LogsFilter) => ({ ...f, runId: e.target.value }))}
                     className="flex-1"
                   >
                     <option value="">All runs</option>
@@ -180,7 +180,7 @@ function LogsRoute() {
                     <button
                       type="button"
                       title="Clear run filter"
-                      onClick={() => setFilter((f) => ({ ...f, runId: "" }))}
+                      onClick={() => setFilter((f: LogsFilter) => ({ ...f, runId: "" }))}
                       className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
                     >
                       <X size={13} />
@@ -193,7 +193,7 @@ function LogsRoute() {
                 <div className="flex items-center gap-1">
                   <Select
                     value={filter.type ?? ""}
-                    onChange={(e) => setFilter((f) => ({ ...f, type: e.target.value }))}
+                    onChange={(e) => setFilter((f: LogsFilter) => ({ ...f, type: e.target.value }))}
                     className="flex-1"
                   >
                     <option value="">All types</option>
@@ -208,7 +208,7 @@ function LogsRoute() {
                     <button
                       type="button"
                       title="Clear event type filter"
-                      onClick={() => setFilter((f) => ({ ...f, type: "" }))}
+                      onClick={() => setFilter((f: LogsFilter) => ({ ...f, type: "" }))}
                       className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
                     >
                       <X size={13} />
@@ -224,7 +224,7 @@ function LogsRoute() {
                 <div className="flex items-center gap-1">
                   <Select
                     value={filter.level ?? ""}
-                    onChange={(e) => setFilter((f) => ({ ...f, level: e.target.value }))}
+                    onChange={(e) => setFilter((f: LogsFilter) => ({ ...f, level: e.target.value }))}
                     className="flex-1"
                   >
                     <option value="">All levels</option>
@@ -236,7 +236,7 @@ function LogsRoute() {
                     <button
                       type="button"
                       title="Clear level filter"
-                      onClick={() => setFilter((f) => ({ ...f, level: "" }))}
+                      onClick={() => setFilter((f: LogsFilter) => ({ ...f, level: "" }))}
                       className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
                     >
                       <X size={13} />
@@ -249,7 +249,7 @@ function LogsRoute() {
                 <MultiSelect
                   options={companyOptions}
                   value={filter.companies ?? []}
-                  onChange={(next) => setFilter((f) => ({ ...f, companies: next }))}
+                  onChange={(next) => setFilter((f: LogsFilter) => ({ ...f, companies: next }))}
                   placeholder="All companies"
                   noun="companies"
                 />
@@ -258,7 +258,7 @@ function LogsRoute() {
                 <label className="text-sm font-medium">Limit</label>
                 <Select
                   value={String(filter.limit ?? 200)}
-                  onChange={(e) => setFilter((f) => ({ ...f, limit: Number(e.target.value) }))}
+                  onChange={(e) => setFilter((f: LogsFilter) => ({ ...f, limit: Number(e.target.value) }))}
                 >
                   <option value="50">50</option>
                   <option value="100">100</option>
@@ -274,31 +274,31 @@ function LogsRoute() {
                 {filter.runId && (
                   <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[hsl(var(--secondary))] px-2.5 py-1">
                     Run: {shortRunId(filter.runId)}
-                    <button type="button" onClick={() => setFilter((f) => ({ ...f, runId: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
+                    <button type="button" onClick={() => setFilter((f: LogsFilter) => ({ ...f, runId: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
                   </span>
                 )}
                 {filter.type && (
                   <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[hsl(var(--secondary))] px-2.5 py-1">
                     Type: {filter.type}
-                    <button type="button" onClick={() => setFilter((f) => ({ ...f, type: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
+                    <button type="button" onClick={() => setFilter((f: LogsFilter) => ({ ...f, type: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
                   </span>
                 )}
                 {filter.level && (
                   <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[hsl(var(--secondary))] px-2.5 py-1">
                     Level: {filter.level}
-                    <button type="button" onClick={() => setFilter((f) => ({ ...f, level: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
+                    <button type="button" onClick={() => setFilter((f: LogsFilter) => ({ ...f, level: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
                   </span>
                 )}
                 {filter.q && (
                   <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[hsl(var(--secondary))] px-2.5 py-1">
                     Search: "{filter.q}"
-                    <button type="button" onClick={() => setFilter((f) => ({ ...f, q: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
+                    <button type="button" onClick={() => setFilter((f: LogsFilter) => ({ ...f, q: "" }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
                   </span>
                 )}
                 {(filter.companies?.length ?? 0) > 0 && (
                   <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[hsl(var(--secondary))] px-2.5 py-1">
                     {filter.companies!.length} {filter.companies!.length === 1 ? "company" : "companies"}
-                    <button type="button" onClick={() => setFilter((f) => ({ ...f, companies: [] }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
+                    <button type="button" onClick={() => setFilter((f: LogsFilter) => ({ ...f, companies: [] }))} className="hover:text-[hsl(var(--foreground))] ml-0.5"><X size={11} /></button>
                   </span>
                 )}
                 <button
@@ -341,11 +341,11 @@ function LogsRoute() {
               </div>
             ) : (
               <div className="divide-y divide-[hsl(var(--border))]">
-                {logs.map((log, i) => (
+                {logs.map((log: LogEntry, i: number) => (
                   <LogRow
                     key={`${log.runId ?? ""}-${log.timestamp}-${i}`}
                     log={log}
-                    onFilterRunId={(rid) => setFilter((f) => ({ ...f, runId: rid }))}
+                    onFilterRunId={(rid) => setFilter((f: LogsFilter) => ({ ...f, runId: rid }))}
                     runIdFiltered={Boolean(filter.runId)}
                   />
                 ))}

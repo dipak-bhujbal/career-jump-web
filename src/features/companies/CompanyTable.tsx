@@ -73,7 +73,9 @@ function CompanyRow({
   onRemove: CompanyTableProps["onRemove"];
   onToggleScan: CompanyTableProps["onToggleScan"];
 }) {
-  const isRegistry = company.isRegistry === true;
+  // Treat as registry-backed if explicitly flagged OR if registryAts is present
+  // (real backend may not persist isRegistry but always returns registryAts for picker-added companies)
+  const isRegistry = company.isRegistry === true || Boolean(company.registryAts);
   return (
     <div className={cn("grid grid-cols-12 gap-3 items-center px-5 py-3", paused && "opacity-60")}>
       {/* Avatar + name (col-span 4) */}
