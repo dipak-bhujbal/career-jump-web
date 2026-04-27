@@ -190,14 +190,17 @@ export function MeteorBackground() {
       }
     }
     document.addEventListener("visibilitychange", onVisibility);
+    // Capture the current animation bucket for cleanup; the ref may point to a
+    // newer bucket by the time React tears this effect down.
+    const effectState = stateRef.current;
 
     return () => {
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
-      if (stateRef.current.rafId) cancelAnimationFrame(stateRef.current.rafId);
-      stateRef.current.rafId = 0;
-      stateRef.current.meteors = [];
-      stateRef.current.stars = [];
+      if (effectState.rafId) cancelAnimationFrame(effectState.rafId);
+      effectState.rafId = 0;
+      effectState.meteors = [];
+      effectState.stars = [];
     };
   }, [theme]);
 

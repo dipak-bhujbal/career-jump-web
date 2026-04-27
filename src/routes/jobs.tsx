@@ -70,7 +70,6 @@ function JobsRoute() {
       updatedOnly: search.updated === "1",
     }));
     if (search.new === "1" || search.updated === "1" || search.q) setAdvancedOpen(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.new, search.updated, search.q]);
   const [sortBy, setSortBy] = useState<SortCol>("posted");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -129,7 +128,7 @@ function JobsRoute() {
     const arr = [...filteredJobs];
     const dir = sortDir === "asc" ? 1 : -1;
     arr.sort((a, b) => {
-      let cmp = 0;
+      let cmp: number;
       switch (sortBy) {
         case "company":  cmp = (a.company ?? "").localeCompare(b.company ?? ""); break;
         case "title":    cmp = (a.jobTitle ?? "").localeCompare(b.jobTitle ?? ""); break;

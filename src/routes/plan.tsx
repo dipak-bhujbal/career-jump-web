@@ -37,7 +37,9 @@ export const Route = createFileRoute("/plan")({ component: ActionPlanRoute });
 
 function ActionPlanRoute() {
   const { data, isLoading } = useActionPlan();
-  const rows = data?.jobs ?? [];
+  // Stabilize the empty fallback so memoized filters/sorts do not see a new
+  // array on every render before the action-plan query resolves.
+  const rows = useMemo(() => data?.jobs ?? [], [data?.jobs]);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [keyword, setKeyword] = useState("");

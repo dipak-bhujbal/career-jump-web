@@ -128,7 +128,9 @@ function AppliedRoute() {
   function handleDeleteFilter(id: string) {
     deleteFilterMutation.mutate(id, { onSuccess: () => toast("Filter deleted") });
   }
-  const selectedStatuses = filter.statuses ?? [];
+  // Stabilize the empty fallback so downstream memoized filters do not rerun
+  // just because `filter.statuses` is currently undefined.
+  const selectedStatuses = useMemo(() => filter.statuses ?? [], [filter.statuses]);
 
   // Resolve drawer from live query data so note/status mutations are reflected
   // immediately without requiring the user to close and reopen the drawer.
@@ -516,5 +518,4 @@ function AppliedSavedFiltersPanel({
     </div>
   );
 }
-
 

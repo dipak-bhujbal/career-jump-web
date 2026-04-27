@@ -685,6 +685,5 @@ export function installMocks() {
     }
     return realFetch(input as RequestInfo, init);
   }) as typeof window.fetch;
-  // eslint-disable-next-line no-console
   console.info("[mocks] installed — serving seed data for /api/* endpoints");
 }
