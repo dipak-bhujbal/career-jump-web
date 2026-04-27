@@ -537,6 +537,16 @@ Resources:
       Principal: "*"
       FunctionUrlAuthType: NONE
 
+  # New Lambda Function URLs also require InvokeFunction permission. Restrict
+  # it to Function URL traffic so this does not grant general Lambda invokes.
+  RegistryLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RegistryLambda
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
