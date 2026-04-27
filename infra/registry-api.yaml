@@ -524,7 +524,6 @@ Resources:
           - Content-Type
         AllowMethods:
           - GET
-          - OPTIONS
         AllowOrigins:
           - !Ref AllowedOrigin
         MaxAge: 300
