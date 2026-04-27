@@ -25,6 +25,12 @@ export const registrySearchKey = (q: { search?: string; ats?: string; tier?: str
 
 export type RegistrySearchResult = { ok: boolean; total: number; entries: RegistryEntry[] };
 
+function normalizeRegistryEntries(result: Partial<RegistrySearchResult> & Record<string, unknown>): RegistryEntry[] {
+  // Accept a few response aliases so old/new registry Lambdas cannot blank the picker.
+  const rawEntries = result.entries ?? result.companies ?? result.items ?? result.results;
+  return Array.isArray(rawEntries) ? rawEntries as RegistryEntry[] : [];
+}
+
 export function useConfig() {
   return useQuery({
     queryKey: configKey,
@@ -58,9 +64,9 @@ export function useRegistrySearch(q: { search?: string; ats?: string; tier?: str
       if (q.ats) p.set("ats", q.ats);
       if (q.tier) p.set("tier", q.tier);
       p.set("limit", String(q.limit ?? 50));
-      const result = await registryApi.get<Partial<RegistrySearchResult>>(`/api/registry/companies?${p.toString()}`);
+      const result = await registryApi.get<Partial<RegistrySearchResult> & Record<string, unknown>>(`/api/registry/companies?${p.toString()}`);
       // Normalize sparse registry responses so picker UI can always read arrays safely.
-      const entries = Array.isArray(result.entries) ? result.entries : [];
+      const entries = normalizeRegistryEntries(result);
       return { ok: result.ok !== false, total: result.total ?? entries.length, entries };
     },
     enabled: q.enabled !== false,

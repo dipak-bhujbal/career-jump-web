@@ -92,7 +92,8 @@ npm run build
 AWS_PROFILE=career-jump-personal-deployer aws s3 sync dist/ s3://cj-web-static-poc-561303652551/ \
   --delete \
   --cache-control "public,max-age=31536000,immutable" \
-  --exclude "index.html"
+  --exclude "index.html" \
+  --exclude "aws-config.js"
 
 AWS_PROFILE=career-jump-personal-deployer aws s3 cp dist/index.html s3://cj-web-static-poc-561303652551/index.html \
   --cache-control "public,max-age=0,must-revalidate"
@@ -103,11 +104,16 @@ AWS_PROFILE=career-jump-personal-deployer aws cloudfront create-invalidation \
 ```
 
 The deployed `public/aws-config.js` file is the preferred production config
-surface. It should contain the isolated React API URL and Cognito outputs:
+surface. Do **not** upload the local placeholder `dist/aws-config.js` during
+normal frontend syncs. If runtime config changes are required, upload the
+production config separately with no-cache headers and invalidate
+`/aws-config.js`. It should contain the isolated React API URL, registry API
+URL, and Cognito outputs:
 
 ```js
 window.CAREER_JUMP_AWS = {
   apiBaseUrl: "https://<react-api>.lambda-url.us-east-1.on.aws",
+  registryBaseUrl: "https://<registry-api>.lambda-url.us-east-1.on.aws",
   cognitoDomain: "<career-jump-web-poc>.auth.us-east-1.amazoncognito.com",
   cognitoClientId: "<react-user-pool-client-id>",
   cognitoUserPoolId: "<react-user-pool-id>",

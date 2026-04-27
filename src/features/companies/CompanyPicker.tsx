@@ -25,13 +25,7 @@ const TIERS = [
   { value: "TIER3_LOW", label: "Tier 3" },
 ];
 
-const STARTER_TIERS = [
-  { value: "TIER1_VERIFIED", label: "Tier 1 verified", helper: "Highest-confidence boards" },
-  { value: "TIER2_MEDIUM", label: "Tier 2", helper: "Good candidates to review" },
-  { value: "TIER3_LOW", label: "Tier 3", helper: "Lower-confidence discoveries" },
-];
-
-const STARTER_LIMIT = 8;
+const DEFAULT_RESULT_LIMIT = 50;
 
 export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, onAddCustom }: CompanyPickerProps) {
   const [search, setSearch] = useState("");
@@ -53,22 +47,12 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
     }
   }, [open]);
 
-  // Reset tier to "All" when the user starts typing so filters don't silently
-  // hide results (e.g. searching "amazon" while Tier 1 is active returns 0).
-  useEffect(() => {
-    if (search) setTier("");
-  }, [search]);
-
   const meta = useRegistryMeta();
   const adapters = meta.data?.adapters ?? [];
   const totalRegistry = meta.data?.counts.total ?? 0;
 
-  const hasFilter = !!(debounced || ats || tier);
-  const results = useRegistrySearch({ search: debounced, ats, tier, enabled: open && hasFilter });
-  const tier1Starter = useRegistrySearch({ tier: "TIER1_VERIFIED", limit: STARTER_LIMIT, enabled: open && !hasFilter });
-  const tier2Starter = useRegistrySearch({ tier: "TIER2_MEDIUM", limit: STARTER_LIMIT, enabled: open && !hasFilter });
-  const tier3Starter = useRegistrySearch({ tier: "TIER3_LOW", limit: STARTER_LIMIT, enabled: open && !hasFilter });
-  const starterQueries = [tier1Starter, tier2Starter, tier3Starter];
+  const activeTierLabel = TIERS.find((t) => t.value === tier)?.label ?? "All";
+  const results = useRegistrySearch({ search: debounced, ats, tier, limit: DEFAULT_RESULT_LIMIT, enabled: open });
   const resultEntries = results.data?.entries ?? [];
   const resultTotal = results.data?.total ?? resultEntries.length;
 
@@ -84,13 +68,6 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
       }),
     [results.data?.entries, trackedKeys],
   );
-
-  const sortEntries = (entries: RegistryEntry[]) =>
-    [...entries].sort((a, b) => {
-      const aTracked = trackedKeys.has(companyKey(a.company)) ? 1 : 0;
-      const bTracked = trackedKeys.has(companyKey(b.company)) ? 1 : 0;
-      return aTracked - bTracked;
-    });
 
   const renderEntry = (entry: RegistryEntry) => {
     const isTracked = trackedKeys.has(companyKey(entry.company));
@@ -147,7 +124,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             {totalRegistry > 0 && <Badge variant="secondary">{totalRegistry.toLocaleString()} available</Badge>}
           </div>
           <p className="text-base text-[hsl(var(--muted-foreground))]">
-            Search for the company you want to track. We'll handle the rest.
+            Browse {activeTierLabel === "All" ? "all companies" : activeTierLabel} or search within the selected list.
           </p>
           <div className="mt-4 relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
@@ -184,48 +161,13 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             </Select>
             <div className="ml-auto text-sm text-[hsl(var(--muted-foreground))]">
               {results.isFetching ? <span className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Searching…</span> :
-                hasFilter && results.data ? `${resultEntries.length} of ${resultTotal.toLocaleString()} match` : ""}
+                results.data ? `${resultEntries.length} of ${resultTotal.toLocaleString()} shown` : ""}
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {!hasFilter && (
-            <div className="space-y-4">
-              <div className="px-1 pt-2 text-sm text-[hsl(var(--muted-foreground))]">
-                Start with a small curated sample by tier, or search the full verified catalog.
-              </div>
-              {STARTER_TIERS.map((starter, index) => {
-                const query = starterQueries[index];
-                const entries = sortEntries(query.data?.entries ?? []);
-                return (
-                  <section key={starter.value} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/30">
-                    <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-[hsl(var(--border))]">
-                      <div>
-                        <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{starter.label}</div>
-                        <div className="text-xs text-[hsl(var(--muted-foreground))]">{starter.helper}</div>
-                      </div>
-                      {query.isFetching && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
-                          <Loader2 size={12} className="animate-spin" /> Loading
-                        </span>
-                      )}
-                    </div>
-                    {query.isError && !query.isFetching ? (
-                      <div className="px-3 py-4 text-sm text-[hsl(var(--muted-foreground))]">
-                        Could not load this tier. Search is still available above.
-                      </div>
-                    ) : (
-                      <ul className="flex flex-col gap-1 p-1">
-                        {entries.map(renderEntry)}
-                      </ul>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          )}
-          {hasFilter && results.isError && !results.isFetching && (
+          {results.isError && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
               Search requires a connection to the registry.{" "}
               <button className="underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>
@@ -233,16 +175,16 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
               </button>{" "}instead.
             </div>
           )}
-          {hasFilter && !results.isError && resultEntries.length === 0 && !results.isFetching && (
+          {!results.isError && resultEntries.length === 0 && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
-              No matches. Try a different search or
+              No matches in {activeTierLabel}. Try a different search or
               <button className="ml-1 underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>
                 add a custom company
               </button>.
             </div>
           )}
           <ul className="flex flex-col gap-1">
-            {hasFilter && sortedEntries.map(renderEntry)}
+            {!results.isError && sortedEntries.map(renderEntry)}
           </ul>
         </div>
 
