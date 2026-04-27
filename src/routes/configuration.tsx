@@ -408,14 +408,20 @@ function ConfigurationRoute() {
   );
 }
 
-/** Drop registry-only metadata before equality checks so toggling the
- *  picker open/closed never marks the form dirty. */
+/** Infer registry status the same way the display hydration does, so raw
+ *  backend rows and enriched draft rows compare equal after load/save. */
+function inferredRegistryStatus(row: CompanyConfig): boolean {
+  return Boolean(row.isRegistry || row.registryAts || row.source || row.sampleUrl);
+}
+
+/** Drop registry-only metadata before equality checks so display backfills
+ *  never make the form look edited on first load. */
 function normalize(rows: CompanyConfig[]): Array<Partial<CompanyConfig>> {
   return rows.map((r) => ({
     company: r.company.trim(),
     enabled: r.enabled !== false,
     source: r.source ?? "",
     sampleUrl: r.sampleUrl ?? "",
-    isRegistry: r.isRegistry === true,
+    isRegistry: inferredRegistryStatus(r),
   }));
 }
