@@ -1,9 +1,9 @@
 /**
  * Auth library — wraps Amazon Cognito with a mock fallback for local dev.
  *
- * When VITE_COGNITO_USER_POOL_ID is not set (or VITE_USE_MOCKS=true),
- * all calls go through a lightweight in-memory mock so the app works
- * without real AWS credentials during development.
+ * When VITE_USE_MOCKS=true on localhost, all calls go through a lightweight
+ * in-memory mock so the app works without real AWS credentials during local
+ * development.
  *
  * Tenant ID = Cognito `sub` claim. Every API call includes the ID token
  * as Authorization: Bearer <idToken>. The backend extracts sub to scope
@@ -18,19 +18,18 @@ import {
   type CognitoUserSession,
   type ISignUpResult,
 } from "amazon-cognito-identity-js";
+import { envValue, isLocalDevHost, runtimeValue } from "./runtime-config";
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-function env(key: string): string {
-  return (import.meta as unknown as { env: Record<string, string | undefined> }).env[key] ?? "";
-}
-
-const REGION = env("VITE_AWS_REGION") || "us-east-1";
-const POOL_ID = env("VITE_COGNITO_USER_POOL_ID");
-const CLIENT_ID = env("VITE_COGNITO_APP_CLIENT_ID");
-const USE_MOCKS = env("VITE_USE_MOCKS") === "true" || !POOL_ID;
+const REGION = envValue("VITE_AWS_REGION") || "us-east-1";
+const POOL_ID = runtimeValue("cognitoUserPoolId") || envValue("VITE_COGNITO_USER_POOL_ID");
+const CLIENT_ID = runtimeValue("cognitoClientId") || envValue("VITE_COGNITO_APP_CLIENT_ID");
+// Only local/dev hosts can enable mocks, even if a prod build accidentally
+// carries VITE_USE_MOCKS=true.
+const USE_MOCKS = isLocalDevHost() && (envValue("VITE_USE_MOCKS") === "true") && !POOL_ID;
 
 // ---------------------------------------------------------------------------
 // Token storage — sessionStorage primary, localStorage for "remember me"

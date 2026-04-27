@@ -4,7 +4,7 @@ Description: Career Jump SES configuration – email identity, configuration set
 Parameters:
   AppName:
     Type: String
-    Default: career-jump
+    Default: career-jump-web
     Description: Application name used for resource naming.
   Stage:
     Type: String

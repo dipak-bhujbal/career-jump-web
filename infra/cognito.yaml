@@ -4,7 +4,7 @@ Description: Career Jump Cognito User Pool for multi-tenant SaaS authentication.
 Parameters:
   AppName:
     Type: String
-    Default: career-jump
+    Default: career-jump-web
     Description: Application name used for resource naming.
   Stage:
     Type: String
@@ -102,7 +102,7 @@ Resources:
 
       # Tag the pool
       UserPoolTags:
-        App: career-jump
+        App: !Ref AppName
         Stage: !Ref Stage
 
   # ---------------------------------------------------------------------------

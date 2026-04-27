@@ -8,11 +8,33 @@ CloudFormation templates for the Career Jump SaaS backend (auth, email, notifica
 
 | File | Description |
 |---|---|
+| `backend-foundation.yaml` | React-owned DynamoDB state table + SNS notification topic |
 | `frontend-site.yaml` | S3 bucket + CloudFront distribution for the React/Vite SPA |
 | `cognito.yaml` | Cognito User Pool, App Client, and hosted-UI domain |
 | `ses.yaml` | SES email identity, configuration set, six email templates, bounce/complaint SNS topic |
 | `notification-lambda.yaml` | Python 3.12 Lambda that sends SES templated emails via SNS events |
 | `full-stack.yaml` | Orchestrator – nested stacks for all of the above |
+
+## v3.0.0 separation contract
+
+The React app must own its AWS resources so the older `career-jump-aws` app can
+be deleted later without breaking this frontend. Use `AppName=career-jump-web`
+for backend/auth/email resources and `FrontendAppName=cj-web` for the existing
+React static site.
+
+Expected isolated names for the POC stage:
+
+| Resource | Name family |
+|---|---|
+| DynamoDB state table | `career-jump-web-poc-state` |
+| SNS notification topic | `career-jump-web-poc-notifications` |
+| Cognito user pool | `career-jump-web-poc-user-pool` |
+| Post-confirm Lambda | `career-jump-web-poc-post-confirmation` |
+| Notification Lambda | `career-jump-web-poc-notification` |
+| Frontend S3/CloudFront | `cj-web-*` |
+
+Do not pass or reuse `career-jump-aws-poc-state`, `career-jump-aws-poc-api`, or
+the older app's Cognito pool/client in a React production deployment.
 
 ---
 
@@ -40,31 +62,7 @@ aws ses verify-domain-identity --domain yourdomain.com --region us-east-1
 
 For production, request SES production access via the AWS console (Support Center → SES Sending Limits increase).
 
-### 3. Create an SNS topic for notifications (if not already managed elsewhere)
-
-```bash
-aws sns create-topic --name career-jump-poc-notifications --region us-east-1
-# Note the returned TopicArn – pass it as NotificationTopicArn
-```
-
-### 4. Create a DynamoDB table (if not already managed elsewhere)
-
-The table must use `PK` (String) as the partition key and `SK` (String) as the sort key:
-
-```bash
-aws dynamodb create-table \
-  --table-name career-jump-poc-users \
-  --attribute-definitions \
-      AttributeName=PK,AttributeType=S \
-      AttributeName=SK,AttributeType=S \
-  --key-schema \
-      AttributeName=PK,KeyType=HASH \
-      AttributeName=SK,KeyType=RANGE \
-  --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
-```
-
-### 5. S3 bucket for nested-stack templates (full-stack.yaml only)
+### 3. S3 bucket for nested-stack templates (full-stack.yaml only)
 
 ```bash
 aws s3 mb s3://career-jump-cfn-templates --region us-east-1
@@ -80,18 +78,25 @@ Deploy stacks independently **or** use `full-stack.yaml` for a single-command de
 
 ```bash
 REGION=us-east-1
-APP=career-jump
+APP=career-jump-web
 STAGE=poc
 FROM_EMAIL=noreply@yourdomain.com
 
-# 1. Frontend (optional if already deployed)
+# 1. Backend foundation (DynamoDB + SNS)
+aws cloudformation deploy \
+  --template-file infra/backend-foundation.yaml \
+  --stack-name ${APP}-foundation-${STAGE} \
+  --parameter-overrides AppName=${APP} Stage=${STAGE} \
+  --region ${REGION}
+
+# 2. Frontend (optional if already deployed)
 aws cloudformation deploy \
   --template-file infra/frontend-site.yaml \
   --stack-name cj-web-frontend-${STAGE} \
   --parameter-overrides AppName=cj-web Stage=${STAGE} \
   --region ${REGION}
 
-# 2. Cognito
+# 3. Cognito
 aws cloudformation deploy \
   --template-file infra/cognito.yaml \
   --stack-name ${APP}-cognito-${STAGE} \
@@ -99,10 +104,12 @@ aws cloudformation deploy \
       AppName=${APP} \
       Stage=${STAGE} \
       SESFromEmail=${FROM_EMAIL} \
+      DynamoDBTableName=${APP}-${STAGE}-state \
+      NotificationTopicArn=arn:aws:sns:${REGION}:ACCOUNT_ID:${APP}-${STAGE}-notifications \
   --capabilities CAPABILITY_NAMED_IAM \
   --region ${REGION}
 
-# 3. SES
+# 4. SES
 aws cloudformation deploy \
   --template-file infra/ses.yaml \
   --stack-name ${APP}-ses-${STAGE} \
@@ -112,8 +119,8 @@ aws cloudformation deploy \
       FromEmail=${FROM_EMAIL} \
   --region ${REGION}
 
-# 4. Notification Lambda
-#    Replace <UserPoolId> and <TopicArn> with actual values from previous outputs.
+# 5. Notification Lambda
+#    Replace <UserPoolId> with the Cognito output.
 aws cloudformation deploy \
   --template-file infra/notification-lambda.yaml \
   --stack-name ${APP}-notification-${STAGE} \
@@ -122,8 +129,8 @@ aws cloudformation deploy \
       Stage=${STAGE} \
       UserPoolId=<UserPoolId> \
       SESFromEmail=${FROM_EMAIL} \
-      DynamoDBTableName=${APP}-${STAGE}-users \
-      NotificationTopicArn=<TopicArn> \
+      DynamoDBTableName=${APP}-${STAGE}-state \
+      NotificationTopicArn=arn:aws:sns:${REGION}:ACCOUNT_ID:${APP}-${STAGE}-notifications \
   --capabilities CAPABILITY_NAMED_IAM \
   --region ${REGION}
 ```
@@ -132,12 +139,10 @@ aws cloudformation deploy \
 
 ```bash
 REGION=us-east-1
-APP=career-jump
+APP=career-jump-web
 STAGE=poc
 FROM_EMAIL=noreply@yourdomain.com
 TEMPLATES_BUCKET=career-jump-cfn-templates
-TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:career-jump-poc-notifications
-DYNAMO_TABLE=career-jump-poc-users
 
 # Package nested stack templates (uploads local files to S3 and rewrites TemplateURL)
 aws cloudformation package \
@@ -156,8 +161,6 @@ aws cloudformation deploy \
       FrontendAppName=cj-web \
       Stage=${STAGE} \
       SESFromEmail=${FROM_EMAIL} \
-      DynamoDBTableName=${DYNAMO_TABLE} \
-      NotificationTopicArn=${TOPIC_ARN} \
       TemplatesBucketName=${TEMPLATES_BUCKET} \
   --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
   --region ${REGION}
@@ -184,12 +187,12 @@ Use the `UserPoolId` and `UserPoolClientId` outputs to populate your `.env.local
 
 | Parameter | Stack(s) | Description |
 |---|---|---|
-| `AppName` | all | Prefix for all resource names and CloudFormation exports. Default: `career-jump`. |
+| `AppName` | all | Prefix for backend/auth/email resource names and CloudFormation exports. Default: `career-jump-web`. |
 | `Stage` | all | Deployment stage (`poc`, `dev`, `staging`, `prod`). Affects resource names. |
 | `SESFromEmail` / `FromEmail` | cognito, ses, notification-lambda, full-stack | Verified SES sender address. Must be verified before deploy. |
 | `UserPoolId` | notification-lambda, full-stack | Cognito User Pool ID. Output from the cognito stack. |
-| `DynamoDBTableName` | notification-lambda, full-stack | DynamoDB table holding user profiles (PK=`USER#<id>`, SK=`PROFILE`). |
-| `NotificationTopicArn` | notification-lambda, full-stack | SNS topic that triggers the notification Lambda. |
+| `DynamoDBTableName` | cognito, notification-lambda | DynamoDB table holding user profiles (`pk=USER#<id>`, `sk=PROFILE`). The full-stack orchestrator creates and wires this automatically. |
+| `NotificationTopicArn` | cognito, notification-lambda | SNS topic that triggers the notification Lambda. The full-stack orchestrator creates and wires this automatically. |
 | `TemplatesBucketName` | full-stack | S3 bucket that holds packaged nested-stack YAML files (after `cfn package`). |
 | `FrontendAppName` | full-stack | AppName forwarded to the frontend-site nested stack. Default: `cj-web`. |
 

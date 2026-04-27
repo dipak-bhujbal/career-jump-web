@@ -1,7 +1,7 @@
 /**
  * Tiny fetch-interceptor that serves seed data for the demo build.
  *
- * Enabled when `VITE_USE_MOCKS=true` (or when `?demo=1` is in the URL).
+ * Enabled only on localhost when `VITE_USE_MOCKS=true` or `?demo=1`.
  * Wraps `window.fetch` and intercepts our app's API calls; everything
  * else passes through unchanged. No service worker needed.
  *
@@ -16,6 +16,7 @@ import {
 } from "./data";
 import type { AppliedJob, Job, RuntimeConfig } from "@/lib/api";
 import { isInterestingTitle, enrichJob, shouldKeepJobForUSInventory } from "@/lib/job-filters";
+import { envValue, isLocalDevHost } from "@/lib/runtime-config";
 import { companyKey } from "@/lib/utils";
 
 interface SavedFilter {
@@ -655,10 +656,10 @@ export function _resetMockState() {
   state = null;
 }
 
-/** Should we install mocks? Triggered by env var or query string. */
+/** Should we install mocks? Only local/dev builds can opt into mock data. */
 export function shouldUseMocks(): boolean {
-  const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
-  if (env.VITE_USE_MOCKS === "true") return true;
+  if (!isLocalDevHost()) return false;
+  if (envValue("VITE_USE_MOCKS") === "true") return true;
   try {
     return new URLSearchParams(window.location.search).get("demo") === "1";
   } catch {

@@ -4,7 +4,7 @@ Description: Career Jump notification Lambda – sends transactional SES emails 
 Parameters:
   AppName:
     Type: String
-    Default: career-jump
+    Default: career-jump-web
     Description: Application name used for resource naming.
   Stage:
     Type: String
@@ -35,7 +35,7 @@ Resources:
       RetentionInDays: 30
       Tags:
         - Key: App
-          Value: career-jump
+          Value: !Ref AppName
         - Key: Stage
           Value: !Ref Stage
 
@@ -56,7 +56,7 @@ Resources:
         }
       Description: Notification Lambda runtime configuration.
       Tags:
-        App: career-jump
+        App: !Ref AppName
         Stage: !Ref Stage
 
   # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ Resources:
 
       Tags:
         - Key: App
-          Value: career-jump
+          Value: !Ref AppName
         - Key: Stage
           Value: !Ref Stage
 
@@ -252,7 +252,9 @@ Resources:
               """Return the user profile item from DynamoDB (empty dict on miss)."""
               table = dynamodb.Table(DYNAMODB_TABLE)
               try:
-                  resp = table.get_item(Key={"PK": f"USER#{user_id}", "SK": "PROFILE"})
+                  # Match the React-owned DynamoDB table and the Cognito trigger,
+                  # both of which use lowercase pk/sk keys.
+                  resp = table.get_item(Key={"pk": f"USER#{user_id}", "sk": "PROFILE"})
                   return resp.get("Item", {})
               except ClientError as exc:
                   logger.warning(

@@ -45,11 +45,18 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
     }
   }, [open]);
 
+  // Reset tier to "All" when the user starts typing so filters don't silently
+  // hide results (e.g. searching "amazon" while Tier 1 is active returns 0).
+  useEffect(() => {
+    if (search) setTier("");
+  }, [search]);
+
   const meta = useRegistryMeta();
   const adapters = meta.data?.adapters ?? [];
   const totalRegistry = meta.data?.counts.total ?? 0;
 
-  const results = useRegistrySearch({ search: debounced, ats, tier, enabled: open });
+  const hasFilter = !!(debounced || ats || tier);
+  const results = useRegistrySearch({ search: debounced, ats, tier, enabled: open && hasFilter });
 
   const trackedKeys = useMemo(() => new Set(trackedCompanies.map((c) => companyKey(c.company))), [trackedCompanies]);
   // Keep already-tracked companies visible, but push them to the bottom so
@@ -110,13 +117,18 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             </Select>
             <div className="ml-auto text-sm text-[hsl(var(--muted-foreground))]">
               {results.isFetching ? <span className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Searching…</span> :
-                results.data ? `${results.data.entries.length} of ${results.data.total.toLocaleString()} match` : ""}
+                hasFilter && results.data ? `${results.data.entries.length} of ${results.data.total.toLocaleString()} match` : ""}
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {results.data?.entries.length === 0 && !results.isFetching && (
+          {!hasFilter && (
+            <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+              Type a company name to search {totalRegistry > 0 ? `${totalRegistry.toLocaleString()} companies` : "the registry"}.
+            </div>
+          )}
+          {hasFilter && results.data?.entries.length === 0 && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
               No matches. Try a different search or
               <button className="ml-1 underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>

@@ -1,10 +1,18 @@
 # Agent Handoff — Career Jump Multi-Tenancy Production Readiness
 
 **Date:** 2026-04-26  
-**Status:** Frontend complete, infra templates ready, backend tenant scoping is a no-op  
+**Status:** Frontend complete, v3 isolated infra templates ready, backend tenant/API cutover still required
 **Goal:** Get real users signing up, using the app, and receiving emails end-to-end
 
 ---
+
+## v3.0.0 Separation Update
+
+Use `docs/AWS_SEPARATION.md` as the source of truth for Phases 1-3. The React
+app now has templates for its own DynamoDB table, SNS notification topic,
+Cognito pool, and notification Lambda wiring under the `career-jump-web` name
+family. Do not reuse `career-jump-aws-poc` backend/auth/data resources for the
+React production deployment.
 
 ## What Has Already Been Built (Do Not Redo)
 
@@ -154,7 +162,9 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
-Create `/path/to/career-jump-web/.env.local` (all three Cognito vars are required to exit mock mode — missing any one of them leaves the frontend in mock mode):
+Create `/path/to/career-jump-web/.env.local` for local testing. Missing Cognito
+values no longer force mock mode in production; local mock mode requires
+`VITE_USE_MOCKS=true` on localhost.
 
 ```env
 VITE_AWS_REGION=us-east-1
@@ -166,8 +176,8 @@ VITE_USE_MOCKS=false
 VITE_APP_URL=http://localhost:5173
 ```
 
-> `src/lib/auth.ts` checks `VITE_COGNITO_USER_POOL_ID` to decide mock vs real.  
-> If it is empty, the app silently uses mock auth regardless of `VITE_USE_MOCKS`.
+> `src/lib/auth.ts` only enables mock auth on localhost when
+> `VITE_USE_MOCKS=true`; CloudFront production must use real Cognito config.
 
 ### Quick smoke test
 ```bash
@@ -578,7 +588,7 @@ aws cloudfront create-invalidation \
 | Fact | Detail |
 |---|---|
 | Tenant ID | Cognito `sub` claim — immutable UUID, never changes even if email changes |
-| Frontend mock mode trigger | `VITE_COGNITO_USER_POOL_ID` is empty — if missing, app uses mock regardless of `VITE_USE_MOCKS` |
+| Frontend mock mode trigger | Localhost only with `VITE_USE_MOCKS=true`; CloudFront production does not enter mock mode |
 | Mock verification code | Always `123456` |
 | DynamoDB key pattern | `USER#{sub}#{RESOURCE}` as partition key, e.g. `USER#abc-123#JOBS` |
 | Backend tenant files | `career-jump-aws/src/lib/tenant.ts` and `src/aws/auth.ts` — currently stubs |

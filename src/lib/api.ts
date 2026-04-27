@@ -1,4 +1,5 @@
 import { getValidIdToken, isAuthEnabled } from "./auth";
+import { envValue, runtimeValue, trimTrailingSlash } from "./runtime-config";
 
 export class ApiError extends Error {
   status: number;
@@ -10,13 +11,11 @@ export class ApiError extends Error {
   }
 }
 
-// Base URL is empty by default — fetch hits the same origin and Vite's
-// dev proxy forwards /api/* to VITE_API_URL. In production builds the
-// React app and the API live behind the same CloudFront, so empty is fine.
+// Base URL is empty by default so local dev can use Vite's /api proxy. In
+// production, aws-config.js injects the isolated Lambda/API URL at runtime.
 const baseUrl = (() => {
-  const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
-  const raw = env.VITE_API_BASE_URL;
-  return raw ? raw.replace(/\/$/, "") : "";
+  const raw = runtimeValue("apiBaseUrl") || envValue("VITE_API_BASE_URL");
+  return raw ? trimTrailingSlash(raw) : "";
 })();
 
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

@@ -10,11 +10,15 @@
 |-----|---------|--------|
 | Vanilla JS app | S3 + CloudFront (`career-jump-aws-poc` stack) | Live |
 | React app (`career-jump-web`) | S3 + CloudFront (`career-jump-web-poc` stack) | Live |
+| React isolated backend foundation | DynamoDB + SNS + Cognito + notifications (`career-jump-web-*`) | v3.0.0 templates ready |
 
 Current React frontend resources:
 - Bucket: `cj-web-static-poc-561303652551`
 - Distribution ID: `E2J6YDTMOQ1AQB`
 - URL: `https://d3azoqpjm8hivh.cloudfront.net/`
+
+v3.0.0 moves the React app toward full AWS separation. New backend resources
+must use the `career-jump-web` name family, not `career-jump-aws-poc`.
 
 ---
 
@@ -71,7 +75,8 @@ AWS_PROFILE=career-jump-personal-deployer aws cloudformation deploy \
 
 ## AWS Deploy — Frontend Assets
 
-Use real backend and Cognito values for production builds:
+Use real backend and Cognito values for production. Do not deploy with
+`VITE_USE_MOCKS=true`; that flag is only for local demo/testing.
 
 ```bash
 cd ~/career-jump-web
@@ -96,6 +101,24 @@ AWS_PROFILE=career-jump-personal-deployer aws cloudfront create-invalidation \
   --distribution-id E2J6YDTMOQ1AQB \
   --paths "/index.html"
 ```
+
+The deployed `public/aws-config.js` file is the preferred production config
+surface. It should contain the isolated React API URL and Cognito outputs:
+
+```js
+window.CAREER_JUMP_AWS = {
+  apiBaseUrl: "https://<react-api>.lambda-url.us-east-1.on.aws",
+  cognitoDomain: "<career-jump-web-poc>.auth.us-east-1.amazoncognito.com",
+  cognitoClientId: "<react-user-pool-client-id>",
+  cognitoUserPoolId: "<react-user-pool-id>",
+  redirectUri: window.location.origin,
+};
+```
+
+Local demo mode is still available with `VITE_USE_MOCKS=true` or
+`http://localhost:5173/?demo=1`. CloudFront production ignores both mock
+triggers, so dev mode cannot be enabled there by URL or by an accidental
+mock-enabled production build.
 
 ---
 

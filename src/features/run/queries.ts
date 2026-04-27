@@ -52,13 +52,14 @@ export function useResetData() {
   return useMutation({
     mutationFn: () => api.post<{ ok: boolean }>("/api/data/clear"),
     onSuccess: () => {
-      // Clear-data mutates every dashboard-backed collection, so refresh the
-      // full surface area that can still show stale counts after the reset.
-      qc.invalidateQueries({ queryKey: ["jobs"] });
-      qc.invalidateQueries({ queryKey: ["applied"] });
-      qc.invalidateQueries({ queryKey: ["actionPlan"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["logs"] });
+      // refetchType "all" forces an immediate network fetch even for inactive
+      // queries so the dashboard shows zeroes straight away after a data clear.
+      const opts = { refetchType: "all" as const };
+      qc.invalidateQueries({ queryKey: ["jobs"], ...opts });
+      qc.invalidateQueries({ queryKey: ["applied"], ...opts });
+      qc.invalidateQueries({ queryKey: ["actionPlan"], ...opts });
+      qc.invalidateQueries({ queryKey: ["dashboard"], ...opts });
+      qc.invalidateQueries({ queryKey: ["logs"], ...opts });
     },
   });
 }

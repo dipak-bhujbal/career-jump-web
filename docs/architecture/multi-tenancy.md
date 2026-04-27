@@ -26,7 +26,7 @@ This document defines the multi-tenancy model, DynamoDB key design, enforcement 
 ## Tenancy Model Overview
 
 Career Jump uses **logical multi-tenancy** — all tenants share:
-- The same DynamoDB table (`career-jump-aws-poc-state`)
+- The same React-owned DynamoDB table (`career-jump-web-poc-state`)
 - The same Lambda functions
 - The same API Gateway / Lambda Function URL
 - The same Cognito User Pool
@@ -57,9 +57,9 @@ flowchart TD
     CF["CloudFront\ncj-web-cdn-poc"]
     S3["S3 Bucket\nReact Static Assets"]
     LambdaURL["Lambda Function URL\n(HTTPS endpoint)"]
-    API["API Lambda\ncareer-jump-aws-poc-api"]
+    API["API Lambda\ncareer-jump-web-poc-api"]
     Cognito["Amazon Cognito\nUser Pool\n(auth + sub issuance)"]
-    DDB["DynamoDB\ncareer-jump-aws-poc-state\n(single table, shared)"]
+    DDB["DynamoDB\ncareer-jump-web-poc-state\n(single table, shared)"]
     SES["Amazon SES\n(email notifications)"]
 
     Browser --> CF
@@ -162,7 +162,7 @@ All DynamoDB queries use `KeyConditionExpression` with `begins_with` on the sort
 ```typescript
 // List all inventory jobs for a user
 {
-  TableName: 'career-jump-aws-poc-state',
+  TableName: 'career-jump-web-poc-state',
   KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
   ExpressionAttributeValues: {
     ':pk': `USER#${sub}#JOBS`,

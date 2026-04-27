@@ -71,8 +71,8 @@ npx @tanstack/router-cli generate   # regenerate routeTree.gen.ts (rare; vite pl
 
 ## Architecture notes
 
-- **Auth:** `src/lib/auth.ts` uses Cognito directly in deployed builds and falls back
-  to mock mode only when the Cognito env vars are missing or `VITE_USE_MOCKS=true`.
+- **Auth:** `src/lib/auth.ts` uses Cognito directly in deployed builds. Mock
+  mode is local-only and requires `VITE_USE_MOCKS=true` on localhost.
 - **API types:** hand-typed in `src/lib/api.ts` for the routes the
   rebuild touches. We can swap to `openapi-fetch` codegen against
   `/api/openapi.json` once the surface stabilises.

@@ -6,6 +6,7 @@
 import type {
   AppliedJob, Job, RegistryEntry, RegistryMeta, RuntimeConfig,
 } from "@/lib/api";
+import registryData, { REGISTRY_META } from "@/data/companies-registry";
 
 const NOW = Date.now();
 const HOUR = 60 * 60 * 1000;
@@ -163,27 +164,30 @@ export function buildConfig(): RuntimeConfig {
 export function buildRegistryMeta(): RegistryMeta {
   return {
     ok: true,
-    meta: { version: "demo-v1", total: 1230 },
+    meta: { version: REGISTRY_META.version, total: REGISTRY_META.total },
     loadedAt: NOW,
-    adapters: ["workday", "greenhouse", "ashby", "lever", "smartrecruiters", "icims", "oracle", "workable"],
-    counts: { total: 1230, tier1: 870, tier2: 240, tier3: 80, needsReview: 40 },
+    adapters: [...REGISTRY_META.adapters],
+    counts: {
+      total: REGISTRY_META.total,
+      tier1: REGISTRY_META.tier1,
+      tier2: REGISTRY_META.tier2,
+      tier3: REGISTRY_META.tier3,
+      needsReview: REGISTRY_META.needsReview,
+    },
   };
 }
 
 export function buildRegistryEntries(search?: string, ats?: string, tier?: string): RegistryEntry[] {
-  const all: RegistryEntry[] = seedCompanies.map((c, i) => ({
+  let entries: RegistryEntry[] = registryData.map((c, i) => ({
     rank: i + 1,
-    sheet: "Demo",
+    sheet: "Registry",
     company: c.company,
     board_url: c.board_url,
     ats: c.ats,
-    total_jobs: 50 + i * 12,
-    source: "demo",
+    total_jobs: null,
+    source: "registry",
     tier: c.tier as RegistryEntry["tier"],
-    sample_url: c.board_url,
-    last_checked: ago(HOUR + i * 7 * 60 * 1000),
   }));
-  let entries = all;
   if (ats) entries = entries.filter((e) => (e.ats ?? "").toLowerCase() === ats.toLowerCase());
   if (tier) entries = entries.filter((e) => e.tier === tier);
   if (search) entries = entries.filter((e) => e.company.toLowerCase().includes(search.toLowerCase()));

@@ -59,9 +59,11 @@ flowchart TB
     Scheduler --> Orchestrator
 ```
 
-## Backend — `career-jump-aws` stack (`career-jump-aws-poc`)
+## Backend — React isolated stack (`career-jump-web-poc`)
 
-All resources in `us-east-1`. Defined in `template.yaml` (AWS SAM), deployed via `sam deploy`.
+All resources in `us-east-1`. v3.0.0 templates keep the React app in the
+`career-jump-web` resource family so it can be operated separately from the
+older `career-jump-aws` app.
 
 ### AWS Resources
 
@@ -72,12 +74,12 @@ All resources in `us-east-1`. Defined in `template.yaml` (AWS SAM), deployed via
 | Cognito User Pool | `UserPool` | Single-user auth; admin-created-only |
 | Cognito Client | `UserPoolClient` | OAuth2 PKCE browser flow |
 | Cognito Domain | `UserPoolDomain` | Hosted login UI |
-| Lambda | `career-jump-aws-poc-api` | HTTP handler (30s, 512MB, 20 reserved concurrency) |
-| Lambda | `career-jump-aws-poc-run-orchestrator` | Fans out scans (60s, 256MB, 1 reserved) |
-| Lambda | `career-jump-aws-poc-scan-company` | Per-company ATS fetch (180s, 256MB, 40 reserved) |
-| Lambda | `career-jump-aws-poc-finalize-run` | Merges results, sends email (300s, 512MB, 1 reserved) |
+| Lambda | `career-jump-web-poc-api` | HTTP handler (30s, 512MB, 20 reserved concurrency) |
+| Lambda | `career-jump-web-poc-run-orchestrator` | Fans out scans (60s, 256MB, 1 reserved) |
+| Lambda | `career-jump-web-poc-scan-company` | Per-company ATS fetch (180s, 256MB, 40 reserved) |
+| Lambda | `career-jump-web-poc-finalize-run` | Merges results, sends email (300s, 512MB, 1 reserved) |
 | Lambda Function URL | `ApiFunctionUrl` | Direct HTTPS API endpoint (no API Gateway cost) |
-| DynamoDB | `career-jump-aws-poc-state` | Single-table, all state (PAY_PER_REQUEST) |
+| DynamoDB | `career-jump-web-poc-state` | Single-table, all state (PAY_PER_REQUEST) |
 | EventBridge Scheduler | Weekday schedules | Scans every 3 hrs, Mon–Fri, 6am–9pm ET |
 | CloudWatch Logs | 4 log groups | One per Lambda, 1-day retention |
 | AWS Budgets | Monthly budget | Alerts at 60% + 100% of $5/month |
@@ -287,8 +289,8 @@ npm run preview      # → http://localhost:4173
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `VITE_API_BASE_URL` | Real backend URL (set at build time for production) | Empty (uses mock) |
-| `VITE_USE_MOCKS` | Force mock mode | `true` in dev |
+| `VITE_API_BASE_URL` | Real backend URL, or runtime `window.CAREER_JUMP_AWS.apiBaseUrl` in production | Empty uses the dev proxy |
+| `VITE_USE_MOCKS` | Enables mock mode on localhost only | `false` |
 
 ---
 

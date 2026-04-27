@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { SidebarActions } from "./sidebar-actions";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getAuthDisplayName } from "@/features/auth/display";
+import { useProfile } from "@/features/profile/useProfile";
 
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -17,11 +18,11 @@ const items = [
 export function Sidebar() {
   const { pathname } = useLocation();
   const { user, signOut } = useAuth();
+  const { profile } = useProfile();
 
-  // Strip email domains from fallback Cognito usernames so the sidebar shows
-  // the intended display name rather than repeating the full email address.
-  const displayName = getAuthDisplayName(user);
-  const initial = (user?.username?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
+  // Prefer the user-saved profile username; fall back to auth identity.
+  const displayName = profile.username !== "User" ? profile.username : getAuthDisplayName(user);
+  const initial = (displayName[0] ?? "U").toUpperCase();
 
   return (
     <aside className="w-60 shrink-0 border-r border-[hsl(var(--border))] bg-[hsl(var(--card))]/40 backdrop-blur flex flex-col">

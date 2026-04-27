@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Career Jump full-stack orchestrator.
-  Composes the frontend (S3+CloudFront), Cognito auth, SES email, and
-  notification Lambda nested stacks into a single deployable unit.
+  Composes isolated backend foundation resources, the frontend (S3+CloudFront),
+  Cognito auth, SES email, and notification Lambda nested stacks into a single
+  deployable unit.
 
 # ---------------------------------------------------------------------------
 # Parameters
@@ -10,7 +11,7 @@ Description: >
 Parameters:
   AppName:
     Type: String
-    Default: career-jump
+    Default: career-jump-web
     Description: Application name prefix for all resource names and exports.
 
   Stage:
@@ -29,21 +30,11 @@ Parameters:
       Verified SES sender email address (e.g. noreply@careerjump.io).
       The address (or its domain) must be verified in SES before deploying.
 
-  DynamoDBTableName:
-    Type: String
-    Description: Name of the DynamoDB table used to store user profiles and application records.
-
-  NotificationTopicArn:
-    Type: String
-    Description: >
-      ARN of the SNS topic that publishes notification events to the Lambda.
-      Create this topic in your backend/API stack and pass its ARN here.
-
   TemplatesBucketName:
     Type: String
     Description: >
       S3 bucket that hosts the packaged nested-stack templates
-      (cognito.yaml, ses.yaml, notification-lambda.yaml, frontend-site.yaml).
+      (backend-foundation.yaml, cognito.yaml, ses.yaml, notification-lambda.yaml, frontend-site.yaml).
       Run `aws cloudformation package` to upload and reference this bucket.
 
   # ---- Frontend-site.yaml parameter pass-through ----
@@ -56,6 +47,22 @@ Parameters:
 # Resources
 # ---------------------------------------------------------------------------
 Resources:
+
+  # ---- 0. Backend foundation (DynamoDB + SNS) -------------------------------
+  BackendFoundationStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.${AWS::URLSuffix}/infra/backend-foundation.yaml"
+      Parameters:
+        AppName: !Ref AppName
+        Stage: !Ref Stage
+      Tags:
+        - Key: App
+          Value: !Ref AppName
+        - Key: Stage
+          Value: !Ref Stage
+        - Key: Component
+          Value: backend-foundation
 
   # ---- 1. Frontend (S3 + CloudFront) ----------------------------------------
   FrontendStack:
@@ -82,6 +89,8 @@ Resources:
         AppName: !Ref AppName
         Stage: !Ref Stage
         SESFromEmail: !Ref SESFromEmail
+        DynamoDBTableName: !GetAtt BackendFoundationStack.Outputs.StateTableName
+        NotificationTopicArn: !GetAtt BackendFoundationStack.Outputs.NotificationTopicArn
       Tags:
         - Key: App
           Value: !Ref AppName
@@ -122,8 +131,8 @@ Resources:
         Stage: !Ref Stage
         UserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
         SESFromEmail: !Ref SESFromEmail
-        DynamoDBTableName: !Ref DynamoDBTableName
-        NotificationTopicArn: !Ref NotificationTopicArn
+        DynamoDBTableName: !GetAtt BackendFoundationStack.Outputs.StateTableName
+        NotificationTopicArn: !GetAtt BackendFoundationStack.Outputs.NotificationTopicArn
       Tags:
         - Key: App
           Value: !Ref AppName
@@ -136,6 +145,15 @@ Resources:
 # Outputs
 # ---------------------------------------------------------------------------
 Outputs:
+
+  # ---- Backend foundation ----
+  StateTableName:
+    Description: Dedicated DynamoDB state table for the React application.
+    Value: !GetAtt BackendFoundationStack.Outputs.StateTableName
+
+  NotificationTopicArn:
+    Description: Dedicated SNS notification topic for the React application.
+    Value: !GetAtt BackendFoundationStack.Outputs.NotificationTopicArn
 
   # ---- Frontend ----
   FrontendBucketName:

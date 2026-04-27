@@ -12,7 +12,7 @@ flowchart TD
     LambdaURL["Lambda Function URL\n(HTTPS, no API Gateway)"]
     Cognito["Amazon Cognito\nUser Pool\n(auth + tenant identity)"]
     Lambda["API Lambda\n(JWT validation → sub extraction)"]
-    DDB["DynamoDB\ncareer-jump-aws-poc-state\n(single table, multi-tenant)"]
+    DDB["DynamoDB\ncareer-jump-web-poc-state\n(single table, multi-tenant)"]
     SES["Amazon SES\n(templated email notifications)"]
     EB["EventBridge Scheduler\n(automated scans + weekly digest)"]
 
@@ -171,7 +171,7 @@ Lambda Function URL (no API Gateway)
         ├── Run Orchestrator Lambda (60s, 256MB) — fans out per-company scans
         │     └── Scan Company Lambda (180s, 256MB) × N companies (concurrent)
         │           └── Finalize Run Lambda (300s, 512MB) — merge, notify, release lock
-        └── DynamoDB (single table: career-jump-aws-poc-state)
+        └── DynamoDB (single table: career-jump-web-poc-state)
 
 EventBridge Scheduler — weekday scans every 3 hrs, 6am–9pm ET
 ```
