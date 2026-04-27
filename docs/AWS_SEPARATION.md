@@ -8,14 +8,15 @@ live on its own backend, deleting old app resources must not break React.
 
 Create React-owned backend primitives with the `career-jump-web` name family:
 
-- DynamoDB table: `career-jump-web-poc-state`
+- DynamoDB state table: `career-jump-web-poc-state`
+- DynamoDB registry table: `career-jump-web-poc-registry`
 - SNS notification topic: `career-jump-web-poc-notifications`
 - Ownership tags: `App=career-jump-web`, `Stage=poc`
 
 Implemented in `infra/backend-foundation.yaml` and wired into
-`infra/full-stack.yaml`. The table intentionally uses lowercase `pk` and `sk`
-keys because the existing AWS storage adapters and Cognito trigger already use
-that convention.
+`infra/full-stack.yaml`. Tables intentionally use lowercase `pk` and `sk` keys
+because the existing AWS storage adapters and Cognito trigger already use that
+convention.
 
 ## Phase 2 — Separate Config And Naming
 

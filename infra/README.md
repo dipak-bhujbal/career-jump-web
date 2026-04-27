@@ -27,6 +27,7 @@ Expected isolated names for the POC stage:
 | Resource | Name family |
 |---|---|
 | DynamoDB state table | `career-jump-web-poc-state` |
+| DynamoDB registry table | `career-jump-web-poc-registry` |
 | SNS notification topic | `career-jump-web-poc-notifications` |
 | Cognito user pool | `career-jump-web-poc-user-pool` |
 | Post-confirm Lambda | `career-jump-web-poc-post-confirmation` |
@@ -34,7 +35,9 @@ Expected isolated names for the POC stage:
 | Frontend S3/CloudFront | `cj-web-*` |
 
 Do not pass or reuse `career-jump-aws-poc-state`, `career-jump-aws-poc-api`, or
-the older app's Cognito pool/client in a React production deployment.
+the older app's Cognito pool/client in a React production deployment. Keep the
+global company registry in `career-jump-web-poc-registry`, not in the per-user
+state table.
 
 ---
 

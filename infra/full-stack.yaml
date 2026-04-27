@@ -67,11 +67,13 @@ Resources:
   # ---- 1. Frontend (S3 + CloudFront) ----------------------------------------
   FrontendStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: RegistryApiStack
     Properties:
       TemplateURL: !Sub "https://${TemplatesBucketName}.s3.${AWS::URLSuffix}/infra/frontend-site.yaml"
       Parameters:
         AppName: !Ref FrontendAppName
         Stage: !Ref Stage
+        RegistryApiDomainName: !GetAtt RegistryApiStack.Outputs.ApiGatewayDomainName
       Tags:
         - Key: App
           Value: !Ref AppName
@@ -99,7 +101,29 @@ Resources:
         - Key: Component
           Value: auth
 
-  # ---- 3. SES (email templates + config set) ---------------------------------
+  # ---- 3. Registry API (Lambda + HTTP API Gateway) --------------------------
+  # Needs Cognito (JWT authorizer) and BackendFoundation (registry table).
+  # FrontendStack depends on this for the CloudFront /api/registry/* behavior.
+  RegistryApiStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.${AWS::URLSuffix}/infra/registry-api.yaml"
+      Parameters:
+        AppName: !Ref AppName
+        Stage: !Ref Stage
+        DynamoDBTableName: !GetAtt BackendFoundationStack.Outputs.RegistryTableName
+        UserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        UserPoolClientId: !GetAtt CognitoStack.Outputs.UserPoolClientId
+        AllowedOrigin: "*"
+      Tags:
+        - Key: App
+          Value: !Ref AppName
+        - Key: Stage
+          Value: !Ref Stage
+        - Key: Component
+          Value: registry-api
+
+  # ---- 4. SES (email templates + config set) ---------------------------------
   # Deployed before the notification Lambda so template names are available.
   SESStack:
     Type: AWS::CloudFormation::Stack
@@ -238,3 +262,16 @@ Outputs:
   NotificationSSMConfigPath:
     Description: SSM Parameter path for notification Lambda runtime config.
     Value: !GetAtt NotificationLambdaStack.Outputs.SSMConfigPath
+
+  # ---- Registry API ----
+  RegistryApiUrl:
+    Description: Base URL of the registry HTTP API Gateway.
+    Value: !GetAtt RegistryApiStack.Outputs.ApiGatewayUrl
+
+  RegistryApiDomainName:
+    Description: Bare domain of the registry API Gateway (used as CloudFront origin).
+    Value: !GetAtt RegistryApiStack.Outputs.ApiGatewayDomainName
+
+  RegistryLambdaArn:
+    Description: ARN of the registry Lambda function.
+    Value: !GetAtt RegistryApiStack.Outputs.LambdaArn

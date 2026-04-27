@@ -1,0 +1,485 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Career Jump registry API — HTTP API Gateway + Lambda that serves
+  GET /api/registry/meta and GET /api/registry/companies from DynamoDB.
+  Auth: Cognito JWT (same User Pool as the rest of the app).
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  AppName:
+    Type: String
+    Default: career-jump-web
+  Stage:
+    Type: String
+    Default: poc
+    AllowedValues: [poc, dev, staging, prod]
+  DynamoDBTableName:
+    Type: String
+    Description: DynamoDB registry table (career-jump-web-poc-registry).
+  UserPoolId:
+    Type: String
+    Description: Cognito User Pool ID for JWT authorization.
+  UserPoolClientId:
+    Type: String
+    Description: Cognito App Client ID (audience claim).
+  CognitoRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region where the Cognito User Pool lives.
+  # After deploying this stack, add its ApiGatewayUrl as an origin in your
+  # CloudFront distribution with path pattern /api/registry/* so the frontend
+  # can call the registry endpoints without CORS issues.
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: >
+      CORS allowed origin. Set to your CloudFront URL in production,
+      e.g. https://d3azoapjm8hivh.cloudfront.net
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ------------------------------------------------------------------
+  # CloudWatch Log Group
+  # ------------------------------------------------------------------
+  RegistryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${Stage}-registry"
+      RetentionInDays: 30
+      Tags:
+        - Key: App
+          Value: !Ref AppName
+        - Key: Stage
+          Value: !Ref Stage
+
+  # ------------------------------------------------------------------
+  # IAM Role
+  # ------------------------------------------------------------------
+  RegistryLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-${Stage}-registry-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RegistryDynamoDBRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DynamoDBReadRegistry
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTableName}/index/*"
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt RegistryLogGroup.Arn
+      Tags:
+        - Key: App
+          Value: !Ref AppName
+        - Key: Stage
+          Value: !Ref Stage
+
+  # ------------------------------------------------------------------
+  # Lambda Function
+  # ------------------------------------------------------------------
+  RegistryLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: RegistryLogGroup
+    Properties:
+      FunctionName: !Sub "${AppName}-${Stage}-registry"
+      Description: >
+        Serves GET /api/registry/meta and GET /api/registry/companies
+        from the DynamoDB registry table (pk=REGISTRY).
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt RegistryLambdaRole.Arn
+      Timeout: 15
+      MemorySize: 256
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref DynamoDBTableName
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          LOG_LEVEL: INFO
+      Code:
+        ZipFile: |
+          """
+          Career Jump – Registry Lambda
+          Serves the company registry stored in DynamoDB.
+
+          Routes (via HTTP API Gateway proxy integration):
+            GET /api/registry/meta
+              Returns: { ok, meta, counts, adapters, loadedAt }
+
+            GET /api/registry/companies
+              Query params: search, ats, tier, limit (default 50, max 200)
+              Returns: { ok, total, entries: [{ company, board_url, ats, tier, rank, … }] }
+
+          DynamoDB schema:
+            pk = "REGISTRY"
+            sk = "META"                — registry metadata
+            sk = "COMPANY#<name>"     — one item per company
+          """
+          from __future__ import annotations
+
+          import json
+          import logging
+          import os
+          from typing import Any
+
+          import boto3
+          from boto3.dynamodb.conditions import Key
+          from botocore.exceptions import ClientError
+          from decimal import Decimal
+
+          # ---------------------------------------------------------------------------
+          # Bootstrap
+          # ---------------------------------------------------------------------------
+          LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+          logging.basicConfig(
+              format="%(asctime)s %(levelname)s %(name)s %(message)s",
+              level=getattr(logging, LOG_LEVEL, logging.INFO),
+          )
+          logger = logging.getLogger("registry_lambda")
+
+          TABLE_NAME     = os.environ["DYNAMODB_TABLE"]
+          ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+
+          dynamodb = boto3.resource("dynamodb")
+          table    = dynamodb.Table(TABLE_NAME)
+
+          # Tier ordering for sort stability
+          TIER_ORDER = {
+              "TIER1_VERIFIED": 0,
+              "TIER2_MEDIUM":   1,
+              "TIER3_LOW":      2,
+              "NEEDS_REVIEW":   3,
+          }
+
+          # ---------------------------------------------------------------------------
+          # Helpers
+          # ---------------------------------------------------------------------------
+
+          def decimal_default(obj: Any) -> Any:
+              """JSON serialiser shim for Decimal values returned by DynamoDB."""
+              if isinstance(obj, Decimal):
+                  return int(obj) if obj % 1 == 0 else float(obj)
+              raise TypeError(f"Object of type {type(obj)} is not JSON serialisable")
+
+
+          def cors_headers() -> dict[str, str]:
+              return {
+                  "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
+                  "Access-Control-Allow-Methods": "GET,OPTIONS",
+                  "Access-Control-Allow-Headers": "Authorization,Content-Type",
+                  "Content-Type": "application/json",
+              }
+
+
+          def ok(body: Any, status: int = 200) -> dict:
+              return {
+                  "statusCode": status,
+                  "headers": cors_headers(),
+                  "body": json.dumps(body, default=decimal_default),
+              }
+
+
+          def err(message: str, status: int = 500) -> dict:
+              return {
+                  "statusCode": status,
+                  "headers": cors_headers(),
+                  "body": json.dumps({"ok": False, "error": message}),
+              }
+
+
+          # ---------------------------------------------------------------------------
+          # Registry meta
+          # ---------------------------------------------------------------------------
+
+          def get_meta() -> dict:
+              """Read the REGISTRY/META item from DynamoDB."""
+              try:
+                  resp = table.get_item(Key={"pk": "REGISTRY", "sk": "META"})
+                  item = resp.get("Item")
+                  if not item:
+                      return {"ok": False, "error": "Registry meta not found"}
+                  return {
+                      "ok": True,
+                      "meta": {
+                          "version": item.get("version", "unknown"),
+                          "total":   int(item.get("total", 0)),
+                      },
+                      "loadedAt": None,
+                      "adapters": [],
+                      "counts": {
+                          "total":       int(item.get("total",       0)),
+                          "tier1":       int(item.get("tier1",       0)),
+                          "tier2":       int(item.get("tier2",       0)),
+                          "tier3":       int(item.get("tier3",       0)),
+                          "needsReview": int(item.get("needsReview", 0)),
+                      },
+                  }
+              except ClientError as exc:
+                  logger.error("DynamoDB error fetching meta: %s", exc)
+                  return {"ok": False, "error": str(exc)}
+
+
+          # ---------------------------------------------------------------------------
+          # Registry companies
+          # ---------------------------------------------------------------------------
+
+          def get_companies(search: str, ats: str, tier: str, limit: int) -> dict:
+              """
+              Query all companies (pk=REGISTRY, sk begins_with COMPANY#) then
+              filter in-memory. DynamoDB doesn't support full-text search so we
+              pull all 1,230 items (tiny payload) and filter server-side.
+              """
+              try:
+                  items = []
+                  kwargs: dict[str, Any] = {
+                      "KeyConditionExpression": (
+                          Key("pk").eq("REGISTRY") & Key("sk").begins_with("COMPANY#")
+                      ),
+                  }
+                  # Paginate in case of large result sets
+                  while True:
+                      resp = table.query(**kwargs)
+                      items.extend(resp.get("Items", []))
+                      last = resp.get("LastEvaluatedKey")
+                      if not last:
+                          break
+                      kwargs["ExclusiveStartKey"] = last
+
+              except ClientError as exc:
+                  logger.error("DynamoDB error fetching companies: %s", exc)
+                  return {"ok": False, "total": 0, "entries": []}
+
+              # ---------------------------------------------------------------------------
+              # Client-side filtering
+              # ---------------------------------------------------------------------------
+              if ats:
+                  ats_lower = ats.lower()
+                  items = [c for c in items if (c.get("ats") or "").lower() == ats_lower]
+
+              if tier:
+                  items = [c for c in items if c.get("tier") == tier]
+
+              if search:
+                  search_lower = search.lower()
+                  items = [c for c in items if search_lower in (c.get("company") or "").lower()]
+
+              # Sort: tier order, then rank, then name
+              items.sort(key=lambda c: (
+                  TIER_ORDER.get(c.get("tier", "NEEDS_REVIEW"), 99),
+                  int(c.get("rank") or 9999),
+                  (c.get("company") or "").lower(),
+              ))
+
+              total = len(items)
+              entries = [
+                  {
+                      "rank":      int(c.get("rank") or 0),
+                      "sheet":     c.get("sheet"),
+                      "company":   c.get("company"),
+                      "board_url": c.get("board_url"),
+                      "ats":       c.get("ats"),
+                      "total_jobs":int(c.get("total_jobs") or 0) if c.get("total_jobs") else None,
+                      "source":    "registry",
+                      "tier":      c.get("tier"),
+                  }
+                  for c in items[:limit]
+              ]
+
+              return {"ok": True, "total": total, "entries": entries}
+
+
+          # ---------------------------------------------------------------------------
+          # Lambda entry point
+          # ---------------------------------------------------------------------------
+
+          def handler(event: dict[str, Any], context: Any) -> dict:
+              method = event.get("requestContext", {}).get("http", {}).get("method", "GET").upper()
+              path   = event.get("rawPath", "")
+              qs     = event.get("queryStringParameters") or {}
+
+              logger.info("method=%s path=%s qs=%s", method, path, qs)
+
+              # Pre-flight
+              if method == "OPTIONS":
+                  return {"statusCode": 204, "headers": cors_headers(), "body": ""}
+
+              if method != "GET":
+                  return err("Method not allowed", 405)
+
+              # Route
+              if path.endswith("/meta"):
+                  return ok(get_meta())
+
+              if path.endswith("/companies"):
+                  search = (qs.get("search") or "").strip()
+                  ats    = (qs.get("ats")    or "").strip()
+                  tier   = (qs.get("tier")   or "").strip()
+                  try:
+                      limit = min(int(qs.get("limit", "50")), 200)
+                  except (ValueError, TypeError):
+                      limit = 50
+                  return ok(get_companies(search, ats, tier, limit))
+
+              return err("Not found", 404)
+
+      Tags:
+        - Key: App
+          Value: !Ref AppName
+        - Key: Stage
+          Value: !Ref Stage
+
+  # ------------------------------------------------------------------
+  # HTTP API Gateway
+  # ------------------------------------------------------------------
+  RegistryHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${AppName}-${Stage}-registry-api"
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods: [GET, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type]
+        MaxAge: 300
+      Tags:
+        App: !Ref AppName
+        Stage: !Ref Stage
+
+  # Cognito JWT authorizer — validates Bearer token from the frontend
+  RegistryAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      AuthorizerType: JWT
+      Name: !Sub "${AppName}-${Stage}-cognito-jwt"
+      IdentitySource: "$request.header.Authorization"
+      JwtConfiguration:
+        Audience:
+          - !Ref UserPoolClientId
+        Issuer: !Sub "https://cognito-idp.${CognitoRegion}.amazonaws.com/${UserPoolId}"
+
+  # Lambda integration (proxy)
+  RegistryIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt RegistryLambda.Arn
+      PayloadFormatVersion: "2.0"
+
+  # Routes
+  RegistryMetaRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      RouteKey: "GET /api/registry/meta"
+      AuthorizationType: JWT
+      AuthorizerId: !Ref RegistryAuthorizer
+      Target: !Sub "integrations/${RegistryIntegration}"
+
+  RegistryCompaniesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      RouteKey: "GET /api/registry/companies"
+      AuthorizationType: JWT
+      AuthorizerId: !Ref RegistryAuthorizer
+      Target: !Sub "integrations/${RegistryIntegration}"
+
+  RegistryOptionsMetaRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      RouteKey: "OPTIONS /api/registry/meta"
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${RegistryIntegration}"
+
+  RegistryOptionsCompaniesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      RouteKey: "OPTIONS /api/registry/companies"
+      AuthorizationType: NONE
+      Target: !Sub "integrations/${RegistryIntegration}"
+
+  # Stage (auto-deploy)
+  RegistryApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref RegistryHttpApi
+      StageName: "$default"
+      AutoDeploy: true
+      Tags:
+        App: !Ref AppName
+        Stage: !Ref Stage
+
+  # Permission for API Gateway to invoke the Lambda
+  RegistryLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt RegistryLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RegistryHttpApi}/*/*/api/registry/*"
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  ApiGatewayUrl:
+    Description: Base URL of the registry HTTP API.
+    Value: !Sub "https://${RegistryHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AppName}-${Stage}-RegistryApiUrl"
+
+  ApiGatewayDomainName:
+    Description: >
+      Bare domain name of the registry API Gateway (no https://).
+      Pass this to the frontend-site stack as RegistryApiDomainName so
+      CloudFront routes /api/registry/* to the registry Lambda.
+    Value: !Sub "${RegistryHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AppName}-${Stage}-RegistryApiDomainName"
+
+  LambdaArn:
+    Description: Registry Lambda ARN.
+    Value: !GetAtt RegistryLambda.Arn
+    Export:
+      Name: !Sub "${AppName}-${Stage}-RegistryLambdaArn"
+
+  LambdaRoleArn:
+    Description: Registry Lambda IAM role ARN.
+    Value: !GetAtt RegistryLambdaRole.Arn
+    Export:
+      Name: !Sub "${AppName}-${Stage}-RegistryLambdaRoleArn"
+
+  LogGroupName:
+    Description: CloudWatch log group for registry Lambda.
+    Value: !Ref RegistryLogGroup
+    Export:
+      Name: !Sub "${AppName}-${Stage}-RegistryLogGroupName"

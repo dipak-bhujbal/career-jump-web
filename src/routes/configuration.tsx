@@ -31,7 +31,7 @@ import {
 import { useToggleAllCompanies } from "@/features/run/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { type CompanyConfig, type RegistryEntry } from "@/lib/api";
-import { companyKey } from "@/lib/utils";
+import { companyKey, formatAtsLabel } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { FilterToolbar } from "@/components/filter-toolbar";
 import { Select } from "@/components/ui/select";
@@ -75,7 +75,14 @@ function ConfigurationRoute() {
     setDraftCompanies((current) => {
       if (current.length === 0 ||
           JSON.stringify(normalize(current)) === JSON.stringify(normalize(serverCompanies))) {
-        return serverCompanies.map((c) => ({ ...c }));
+        // Backfill registryAts/isRegistry for companies saved before these fields
+        // were persisted. If a company has a source but no registryAts it was
+        // almost certainly added via the registry picker — infer the display label.
+        return serverCompanies.map((c) => ({
+          ...c,
+          isRegistry: c.isRegistry ?? (Boolean(c.registryAts) || (Boolean(c.source) && Boolean(c.sampleUrl))),
+          registryAts: c.registryAts || (c.source ? formatAtsLabel(c.source) : ""),
+        }));
       }
       return current;
     });

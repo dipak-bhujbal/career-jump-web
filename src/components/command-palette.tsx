@@ -48,15 +48,6 @@ export function CommandPalette() {
     if (!open) setSearch("");
   }, [open]);
 
-  // Auto-open on first visit as a keyboard-first onboarding primer.
-  useEffect(() => {
-    if (localStorage.getItem("cj_onboarded")) return;
-    const t = setTimeout(() => {
-      setOpen(true);
-      localStorage.setItem("cj_onboarded", "1");
-    }, 1200);
-    return () => clearTimeout(t);
-  }, []);
 
   const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
