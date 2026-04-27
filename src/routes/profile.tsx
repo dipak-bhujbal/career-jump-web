@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   User, Lock, LogOut, Save, Trash2, DatabaseZap, KeyRound, AlertTriangle,
@@ -17,6 +17,7 @@ import { Download } from "lucide-react";
 import { useJobs } from "@/features/jobs/queries";
 import { useApplied } from "@/features/applied/queries";
 import { useActionPlan } from "@/features/plan/queries";
+import { getAuthDisplayEmail, getAuthDisplayName } from "@/features/auth/display";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({ component: ProfileRoute });
@@ -76,19 +77,38 @@ function SecurityTip({ icon, title, body }: { icon: React.ReactNode; title: stri
 }
 
 function AccountSection({ profile, updateProfile }: ReturnType<typeof useProfile>) {
-  const [username, setUsername] = useState(profile.username);
-  const [email, setEmail] = useState(profile.email);
+  const { user } = useAuth();
+  const authDisplayName = getAuthDisplayName(user, "User");
+  const authEmail = getAuthDisplayEmail(user);
+  const baselineUsername = profile.username !== "User" ? profile.username : authDisplayName;
+  const baselineEmail = profile.email || authEmail;
+  const [username, setUsername] = useState(baselineUsername);
+  const [email, setEmail] = useState(baselineEmail);
 
   const jobs = useJobs({ limit: 1 });
   const applied = useApplied({});
   const plan = useActionPlan();
+
+  useEffect(() => {
+    // Auth user data resolves asynchronously, so hydrate the form once it
+    // arrives if the profile store is still using its default placeholders.
+    if (profile.username === "User") {
+      setUsername((current) => (current === "User" ? baselineUsername : current));
+    }
+  }, [baselineUsername, profile.username]);
+
+  useEffect(() => {
+    if (!profile.email) {
+      setEmail((current) => current || baselineEmail);
+    }
+  }, [baselineEmail, profile.email]);
 
   const totalJobs = jobs.data?.totals.availableJobs ?? 0;
   const newJobs = jobs.data?.totals.newJobs ?? 0;
   const totalApplied = applied.data?.jobs.length ?? 0;
   const activeInPlan = plan.data?.jobs.filter((j) => !j.outcome || j.outcome === "Pending").length ?? 0;
 
-  const dirty = username !== profile.username || email !== profile.email;
+  const dirty = username !== baselineUsername || email !== baselineEmail;
 
   function save() {
     if (!username.trim()) { toast("Username is required", "error"); return; }
@@ -107,7 +127,13 @@ function AccountSection({ profile, updateProfile }: ReturnType<typeof useProfile
                 <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Your display name" />
               </FieldGroup>
               <FieldGroup label="Email address">
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                <Input
+                  type="email"
+                  value={email}
+                  readOnly
+                  placeholder="you@example.com"
+                  className="bg-[hsl(var(--muted))]/40 cursor-default"
+                />
               </FieldGroup>
             </div>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
@@ -447,9 +473,16 @@ function DangerSection() {
 
 function ProfileRoute() {
   const profileData = useProfile();
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<Section>("account");
 
-  const initial = (profileData.profile.username[0] ?? "U").toUpperCase();
+  // Mirror the account form fallback so the profile header never gets stuck
+  // on placeholder identity values while auth has the real user info.
+  const displayName = profileData.profile.username !== "User"
+    ? profileData.profile.username
+    : getAuthDisplayName(user, "User");
+  const displayEmail = profileData.profile.email || getAuthDisplayEmail(user);
+  const initial = (displayName[0] ?? "U").toUpperCase();
 
   return (
     <>
@@ -462,8 +495,8 @@ function ProfileRoute() {
             <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 grid place-items-center text-white text-3xl font-bold shadow-lg mb-3">
               {initial}
             </div>
-            <div className="font-semibold text-base leading-tight">{profileData.profile.username}</div>
-            <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1 truncate w-full">{profileData.profile.email || "No email set"}</div>
+            <div className="font-semibold text-base leading-tight">{displayName}</div>
+            <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1 truncate w-full">{displayEmail || "No email set"}</div>
           </div>
 
           {NAV.map((item) => (

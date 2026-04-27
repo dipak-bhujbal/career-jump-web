@@ -52,10 +52,13 @@ export function useResetData() {
   return useMutation({
     mutationFn: () => api.post<{ ok: boolean }>("/api/data/clear"),
     onSuccess: () => {
+      // Clear-data mutates every dashboard-backed collection, so refresh the
+      // full surface area that can still show stale counts after the reset.
       qc.invalidateQueries({ queryKey: ["jobs"] });
       qc.invalidateQueries({ queryKey: ["applied"] });
       qc.invalidateQueries({ queryKey: ["actionPlan"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["logs"] });
     },
   });
 }

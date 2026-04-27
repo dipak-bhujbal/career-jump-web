@@ -52,6 +52,17 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
   const results = useRegistrySearch({ search: debounced, ats, tier, enabled: open });
 
   const trackedKeys = useMemo(() => new Set(trackedCompanies.map((c) => companyKey(c.company))), [trackedCompanies]);
+  // Keep already-tracked companies visible, but push them to the bottom so
+  // the next actionable companies are always listed first.
+  const sortedEntries = useMemo(
+    () =>
+      [...(results.data?.entries ?? [])].sort((a, b) => {
+        const aTracked = trackedKeys.has(companyKey(a.company)) ? 1 : 0;
+        const bTracked = trackedKeys.has(companyKey(b.company)) ? 1 : 0;
+        return aTracked - bTracked;
+      }),
+    [results.data?.entries, trackedKeys],
+  );
 
   return (
     <Dialog open={open} onClose={onClose} size="lg" className="overflow-hidden">
@@ -114,7 +125,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             </div>
           )}
           <ul className="flex flex-col gap-1">
-            {(results.data?.entries ?? []).map((entry) => {
+            {sortedEntries.map((entry) => {
               const isTracked = trackedKeys.has(companyKey(entry.company));
               return (
                 <li key={entry.company}>

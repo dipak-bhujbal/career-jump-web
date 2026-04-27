@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Settings2, User } from "lucide-react";
+import { useAuth } from "@/features/auth/AuthContext";
+import { getAuthDisplayEmail, getAuthDisplayName } from "@/features/auth/display";
 import { useProfile } from "@/features/profile/useProfile";
 
 export function ProfileMenu() {
@@ -8,6 +10,7 @@ export function ProfileMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { profile } = useProfile();
+  const { user, signOut } = useAuth();
   useEffect(() => {
     if (!open) return;
     function onMouseDown(e: MouseEvent) {
@@ -29,7 +32,11 @@ export function ProfileMenu() {
     navigate({ to: path });
   }
 
-  const initial = (profile.username[0] ?? "U").toUpperCase();
+  // Fall back to auth-backed identity so the menu stays populated even when
+  // the local profile store is still at its default placeholder values.
+  const displayName = profile.username !== "User" ? profile.username : getAuthDisplayName(user, "User");
+  const displayEmail = profile.email || getAuthDisplayEmail(user);
+  const initial = (displayName[0] ?? "U").toUpperCase();
 
   return (
     <div className="relative" ref={ref}>
@@ -49,9 +56,9 @@ export function ProfileMenu() {
         <div className="absolute right-0 top-full mt-2 z-[100] w-56 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl text-sm">
           {/* Identity header — text only, no large avatar to avoid clipping */}
           <div className="px-4 py-3 border-b border-[hsl(var(--border))]">
-            <div className="font-semibold truncate">{profile.username}</div>
+            <div className="font-semibold truncate">{displayName}</div>
             <div className="text-xs text-[hsl(var(--muted-foreground))] truncate mt-0.5">
-              {profile.email || "No email set"}
+              {displayEmail || "No email set"}
             </div>
           </div>
 
@@ -67,10 +74,7 @@ export function ProfileMenu() {
               type="button"
               onClick={() => {
                 setOpen(false);
-                if (window.confirm("Sign out of Career Jump?")) {
-                  localStorage.removeItem("career-jump:profile");
-                  window.location.reload();
-                }
+                if (window.confirm("Sign out of Career Jump?")) signOut();
               }}
               className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-rose-500/10 text-rose-500 transition-colors text-left"
             >

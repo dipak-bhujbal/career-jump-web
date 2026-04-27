@@ -3,6 +3,7 @@ import { LayoutDashboard, Briefcase, CheckSquare, Target, Settings, Sparkles, Sc
 import { cn } from "@/lib/utils";
 import { SidebarActions } from "./sidebar-actions";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getAuthDisplayName } from "@/features/auth/display";
 
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -17,6 +18,9 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const { user, signOut } = useAuth();
 
+  // Strip email domains from fallback Cognito usernames so the sidebar shows
+  // the intended display name rather than repeating the full email address.
+  const displayName = getAuthDisplayName(user);
   const initial = (user?.username?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
 
   return (
@@ -68,7 +72,7 @@ export function Sidebar() {
               {initial}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium truncate">{user?.username || "Account"}</div>
+              <div className="text-xs font-medium truncate">{displayName}</div>
               <div className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{user?.email || ""}</div>
             </div>
             <User size={13} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
