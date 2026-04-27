@@ -79,11 +79,11 @@ function ConfigurationRoute() {
       }
       return current;
     });
-    setDraftKeywords(config.data?.config.jobtitles ?? { includeKeywords: [], excludeKeywords: [] });
+    setDraftKeywords(config.data?.config?.jobtitles ?? { includeKeywords: [], excludeKeywords: [] });
   }, [config.data]);
 
   const baseline = useMemo(() => config.data?.config?.companies ?? [], [config.data]);
-  const baselineKeywords = useMemo(() => config.data?.config.jobtitles ?? { includeKeywords: [], excludeKeywords: [] }, [config.data]);
+  const baselineKeywords = useMemo(() => config.data?.config?.jobtitles ?? { includeKeywords: [], excludeKeywords: [] }, [config.data]);
 
   const isDirty = useMemo(
     () =>

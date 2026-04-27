@@ -296,8 +296,8 @@ function TopCompaniesWidget() {
   const { data: config } = useConfig();
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const a of applied?.jobs ?? []) m[a.job.company] = (m[a.job.company] ?? 0) + 1;
-    for (const c of config?.config.companies ?? []) m[c.company] = m[c.company] ?? 0;
+    for (const a of applied?.jobs ?? []) if (a.job) m[a.job.company] = (m[a.job.company] ?? 0) + 1;
+    for (const c of config?.config?.companies ?? []) m[c.company] = m[c.company] ?? 0;
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 7);
   }, [applied, config]);
   return (
@@ -324,7 +324,7 @@ function AtsBreakdownWidget() {
   const { data: config } = useConfig();
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const c of config?.config.companies ?? []) {
+    for (const c of config?.config?.companies ?? []) {
       const ats = c.registryAts || c.source || "Unknown";
       m[ats] = (m[ats] ?? 0) + 1;
     }
@@ -360,7 +360,7 @@ function TopLocationsWidget() {
   const { data: applied } = useApplied({});
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const a of applied?.jobs ?? []) {
+    for (const a of (applied?.jobs ?? []).filter((a) => a.job)) {
       const loc = (a.job.location ?? "Unknown").trim() || "Unknown";
       m[loc] = (m[loc] ?? 0) + 1;
     }
@@ -408,9 +408,9 @@ function RecentActivityWidget() {
                 search={{ jobKey: j.jobKey }}
                 className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-[hsl(var(--accent))] transition-colors group"
               >
-                <div className="text-sm font-medium truncate group-hover:text-[hsl(var(--primary))]">{j.job.jobTitle}</div>
+                <div className="text-sm font-medium truncate group-hover:text-[hsl(var(--primary))]">{j.job?.jobTitle}</div>
                 <div className="text-xs text-[hsl(var(--muted-foreground))] flex items-center gap-2 mt-0.5">
-                  <span className="truncate">{j.job.company}</span>
+                  <span className="truncate">{j.job?.company}</span>
                   <Badge variant="secondary">{j.status}</Badge>
                   <span>· {relativeTime(j.lastStatusChangedAt ?? j.appliedAt)}</span>
                 </div>
@@ -446,9 +446,9 @@ function StaleApplicationsWidget() {
                 search={{ jobKey: j.jobKey }}
                 className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-[hsl(var(--accent))] transition-colors group"
               >
-                <div className="text-sm font-medium truncate group-hover:text-[hsl(var(--primary))]">{j.job.jobTitle}</div>
+                <div className="text-sm font-medium truncate group-hover:text-[hsl(var(--primary))]">{j.job?.jobTitle}</div>
                 <div className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  {j.job.company} · last update {relativeTime(j.lastStatusChangedAt ?? j.appliedAt)}
+                  {j.job?.company} · last update {relativeTime(j.lastStatusChangedAt ?? j.appliedAt)}
                 </div>
               </Link>
             </li>
