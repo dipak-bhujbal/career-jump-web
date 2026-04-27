@@ -105,18 +105,66 @@ const INDIGO = "text-indigo-300 [.light_&]:text-indigo-700";
 const EMERALD = "text-emerald-300 [.light_&]:text-emerald-700";
 const ROSE = "text-rose-300 [.light_&]:text-rose-700";
 
-const KpiTotalTracked = () => { const q = useDashboard(); return <KpiTile icon={<Briefcase size={13} />} title="Total tracked" value={formatNumber(q.data?.kpis?.totalTrackedJobs)} isLoading={q.isLoading} link="/jobs" color={BLUE} />; };
+const STATUS_ORDER: AppliedStatus[] = ["Applied", "Interview", "Negotiations", "Offered", "Rejected"];
+
+/** Keep dashboard ratios as fractions because formatPercent multiplies by 100. */
+function ratio(numerator: number, denominator: number): number {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+/** Applied-side dashboard widgets use the same source as the Applied Jobs page. */
+function useAppliedStats() {
+  const applied = useApplied({});
+  return useMemo(() => {
+    const jobs = applied.data?.jobs ?? [];
+    const statusCounts = STATUS_ORDER.reduce((acc, status) => {
+      acc[status] = 0;
+      return acc;
+    }, {} as Record<AppliedStatus, number>);
+    for (const job of jobs) {
+      const status = job.status as AppliedStatus;
+      if (status in statusCounts) statusCounts[status] += 1;
+    }
+    return {
+      jobs,
+      isLoading: applied.isLoading,
+      total: jobs.length,
+      statusCounts,
+      interviewLike: statusCounts.Interview + statusCounts.Negotiations + statusCounts.Offered,
+    };
+  }, [applied.data?.jobs, applied.isLoading]);
+}
+
+/** Available jobs come from scan KPIs; applied jobs come from the Applied list. */
+function usePipelineStats() {
+  const dashboard = useDashboard();
+  const applied = useAppliedStats();
+  const available = dashboard.data?.kpis?.availableJobs ?? 0;
+  const totalTracked = available + applied.total;
+  return {
+    dashboard,
+    applied,
+    available,
+    totalTracked,
+    applicationRatio: ratio(applied.total, totalTracked),
+    interviewRatio: ratio(applied.interviewLike, applied.total),
+    offerRatio: ratio(applied.statusCounts.Offered, applied.total),
+    isLoading: dashboard.isLoading || applied.isLoading,
+  };
+}
+
+const KpiTotalTracked = () => { const s = usePipelineStats(); return <KpiTile icon={<Briefcase size={13} />} title="Total tracked" value={formatNumber(s.totalTracked)} isLoading={s.isLoading} link="/jobs" color={BLUE} />; };
 const KpiAvailable = () => { const q = useDashboard(); return <KpiTile icon={<Briefcase size={13} />} title="Available jobs" value={formatNumber(q.data?.kpis?.availableJobs)} isLoading={q.isLoading} link="/jobs" color={BLUE} />; };
 const KpiNew = () => { const q = useDashboard(); return <KpiTile icon={<Sparkles size={13} />} title="New (latest run)" value={formatNumber(q.data?.kpis?.newJobsLatestRun)} isLoading={q.isLoading} link="/jobs?new=1" color={CYAN} />; };
 const KpiUpdated = () => { const q = useDashboard(); return <KpiTile icon={<RefreshCw size={13} />} title="Updated jobs" value={formatNumber(q.data?.kpis?.updatedJobsLatestRun)} isLoading={q.isLoading} link="/jobs?updated=1" color={AMBER} />; };
-const KpiApplied = () => { const q = useDashboard(); return <KpiTile icon={<CheckSquare size={13} />} title="Applied" value={formatNumber(q.data?.kpis?.appliedJobs)} isLoading={q.isLoading} link="/applied" color={VIOLET} />; };
-const KpiApplicationRatio = () => { const q = useDashboard(); return <KpiTile icon={<TrendingUp size={13} />} title="Application ratio" value={formatPercent(q.data?.kpis?.applicationRatio)} isLoading={q.isLoading} color={INDIGO} hint="applied / available" />; };
-const KpiInterviewRatio = () => { const q = useDashboard(); return <KpiTile icon={<TrendingUp size={13} />} title="Interview ratio" value={formatPercent(q.data?.kpis?.interviewRatio)} isLoading={q.isLoading} color={CYAN} hint="interviewed / applied" />; };
-const KpiOfferRatio = () => { const q = useDashboard(); return <KpiTile icon={<TrendingUp size={13} />} title="Offer ratio" value={formatPercent(q.data?.kpis?.offerRatio)} isLoading={q.isLoading} color={EMERALD} hint="offered / applied" />; };
-const KpiInterviewCount = () => { const q = useDashboard(); return <KpiTile icon={<Layers size={13} />} title="Interview" value={formatNumber(q.data?.kpis?.interview)} isLoading={q.isLoading} link="/applied?status=Interview" color={CYAN} />; };
-const KpiNegotiationsCount = () => { const q = useDashboard(); return <KpiTile icon={<Layers size={13} />} title="Negotiations" value={formatNumber(q.data?.kpis?.negotiations)} isLoading={q.isLoading} link="/applied?status=Negotiations" color={AMBER} />; };
-const KpiOfferedCount = () => { const q = useDashboard(); return <KpiTile icon={<Award size={13} />} title="Offered" value={formatNumber(q.data?.kpis?.offered)} isLoading={q.isLoading} link="/applied?status=Offered" color={EMERALD} />; };
-const KpiRejectedCount = () => { const q = useDashboard(); return <KpiTile icon={<Layers size={13} />} title="Rejected" value={formatNumber(q.data?.kpis?.rejected)} isLoading={q.isLoading} link="/applied?status=Rejected" color={ROSE} />; };
+const KpiApplied = () => { const s = useAppliedStats(); return <KpiTile icon={<CheckSquare size={13} />} title="Applied" value={formatNumber(s.total)} isLoading={s.isLoading} link="/applied" color={VIOLET} />; };
+const KpiApplicationRatio = () => { const s = usePipelineStats(); return <KpiTile icon={<TrendingUp size={13} />} title="Application ratio" value={formatPercent(s.applicationRatio)} isLoading={s.isLoading} color={INDIGO} hint="applied / tracked" />; };
+const KpiInterviewRatio = () => { const s = usePipelineStats(); return <KpiTile icon={<TrendingUp size={13} />} title="Interview ratio" value={formatPercent(s.interviewRatio)} isLoading={s.isLoading} color={CYAN} hint="interview+ / applied" />; };
+const KpiOfferRatio = () => { const s = usePipelineStats(); return <KpiTile icon={<TrendingUp size={13} />} title="Offer ratio" value={formatPercent(s.offerRatio)} isLoading={s.isLoading} color={EMERALD} hint="offered / applied" />; };
+const KpiInterviewCount = () => { const s = useAppliedStats(); return <KpiTile icon={<Layers size={13} />} title="Interview" value={formatNumber(s.statusCounts.Interview)} isLoading={s.isLoading} link="/applied?status=Interview" color={CYAN} />; };
+const KpiNegotiationsCount = () => { const s = useAppliedStats(); return <KpiTile icon={<Layers size={13} />} title="Negotiations" value={formatNumber(s.statusCounts.Negotiations)} isLoading={s.isLoading} link="/applied?status=Negotiations" color={AMBER} />; };
+const KpiOfferedCount = () => { const s = useAppliedStats(); return <KpiTile icon={<Award size={13} />} title="Offered" value={formatNumber(s.statusCounts.Offered)} isLoading={s.isLoading} link="/applied?status=Offered" color={EMERALD} />; };
+const KpiRejectedCount = () => { const s = useAppliedStats(); return <KpiTile icon={<Layers size={13} />} title="Rejected" value={formatNumber(s.statusCounts.Rejected)} isLoading={s.isLoading} link="/applied?status=Rejected" color={ROSE} />; };
 const KpiCompaniesCovered = () => { const q = useDashboard(); const k = q.data?.kpis ?? {}; return <KpiTile icon={<Building2 size={13} />} title="Companies covered" value={`${formatNumber(k.companiesDetected)} / ${formatNumber(k.companiesConfigured)}`} isLoading={q.isLoading} link="/configuration" color={BLUE} />; };
 const KpiTotalFetched = () => { const q = useDashboard(); return <KpiTile icon={<Globe size={13} />} title="Total fetched" value={formatNumber(q.data?.kpis?.totalFetched)} isLoading={q.isLoading} color={INDIGO} hint="across all scans" />; };
 const KpiMatchRate = () => { const q = useDashboard(); return <KpiTile icon={<Target size={13} />} title="Match rate" value={formatPercent(q.data?.kpis?.matchRate)} isLoading={q.isLoading} color={EMERALD} hint="keyword-matched fraction" />; };
@@ -124,11 +172,11 @@ const KpiMatchRate = () => { const q = useDashboard(); return <KpiTile icon={<Ta
 /* ---------- KPI groups (2-column) ----------------------------------- */
 
 function KpiPipeline() {
-  const { data, isLoading } = useDashboard();
-  const k = data?.kpis ?? {};
+  const s = usePipelineStats();
+  const k = s.dashboard.data?.kpis ?? {};
   const items = [
-    { label: "Total tracked", value: formatNumber(k.totalTrackedJobs), to: "/jobs", color: BLUE },
-    { label: "Available", value: formatNumber(k.availableJobs), to: "/jobs", color: BLUE },
+    { label: "Total tracked", value: formatNumber(s.totalTracked), to: "/jobs", color: BLUE },
+    { label: "Available", value: formatNumber(s.available), to: "/jobs", color: BLUE },
     { label: "New", value: formatNumber(k.newJobsLatestRun), to: "/jobs?new=1", color: CYAN },
     { label: "Updated", value: formatNumber(k.updatedJobsLatestRun), to: "/jobs?updated=1", color: AMBER },
   ];
@@ -142,7 +190,7 @@ function KpiPipeline() {
                   className="group rounded-md border border-[hsl(var(--border))]/50 px-3 py-2 hover:bg-[hsl(var(--accent))] transition-colors">
               <div className="text-xs text-[hsl(var(--muted-foreground))]">{it.label}</div>
               <div className={cn("text-2xl font-semibold tabular-nums", it.color)}>
-                {isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
+                {s.isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
               </div>
             </Link>
           );
@@ -153,12 +201,11 @@ function KpiPipeline() {
 }
 
 function KpiConversion() {
-  const { data, isLoading } = useDashboard();
-  const k = data?.kpis ?? {};
+  const s = usePipelineStats();
   const items = [
-    { label: "Application", value: formatPercent(k.applicationRatio), color: VIOLET },
-    { label: "Interview", value: formatPercent(k.interviewRatio), color: CYAN },
-    { label: "Offer", value: formatPercent(k.offerRatio), color: EMERALD },
+    { label: "Application", value: formatPercent(s.applicationRatio), color: VIOLET },
+    { label: "Interview", value: formatPercent(s.interviewRatio), color: CYAN },
+    { label: "Offer", value: formatPercent(s.offerRatio), color: EMERALD },
   ];
   return (
     <WidgetCard icon={<TrendingUp size={14} />} title="Conversion ratios" className="lg:col-span-2" link="/applied">
@@ -167,7 +214,7 @@ function KpiConversion() {
           <div key={it.label} className="rounded-md border border-[hsl(var(--border))]/50 px-3 py-2">
             <div className="text-xs text-[hsl(var(--muted-foreground))]">{it.label} ratio</div>
             <div className={cn("text-2xl font-semibold tabular-nums", it.color)}>
-              {isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
+              {s.isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
             </div>
           </div>
         ))}
@@ -177,13 +224,12 @@ function KpiConversion() {
 }
 
 function KpiStages() {
-  const { data, isLoading } = useDashboard();
-  const k = data?.kpis ?? {};
+  const s = useAppliedStats();
   const items = [
-    { label: "Interview", value: formatNumber(k.interview), to: "/applied?status=Interview", color: CYAN },
-    { label: "Negotiations", value: formatNumber(k.negotiations), to: "/applied?status=Negotiations", color: AMBER },
-    { label: "Offered", value: formatNumber(k.offered), to: "/applied?status=Offered", color: EMERALD },
-    { label: "Rejected", value: formatNumber(k.rejected), to: "/applied?status=Rejected", color: ROSE },
+    { label: "Interview", value: formatNumber(s.statusCounts.Interview), to: "/applied?status=Interview", color: CYAN },
+    { label: "Negotiations", value: formatNumber(s.statusCounts.Negotiations), to: "/applied?status=Negotiations", color: AMBER },
+    { label: "Offered", value: formatNumber(s.statusCounts.Offered), to: "/applied?status=Offered", color: EMERALD },
+    { label: "Rejected", value: formatNumber(s.statusCounts.Rejected), to: "/applied?status=Rejected", color: ROSE },
   ];
   return (
     <WidgetCard icon={<Layers size={14} />} title="Stage breakdown" className="lg:col-span-2">
@@ -195,7 +241,7 @@ function KpiStages() {
                   className="group rounded-md border border-[hsl(var(--border))]/50 px-3 py-2 hover:bg-[hsl(var(--accent))] transition-colors">
               <div className="text-xs text-[hsl(var(--muted-foreground))]">{it.label}</div>
               <div className={cn("text-2xl font-semibold tabular-nums", it.color)}>
-                {isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
+                {s.isLoading ? <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))] animate-pulse" /> : it.value}
               </div>
             </Link>
           );
@@ -208,11 +254,11 @@ function KpiStages() {
 /* ---------- Visual widgets ------------------------------------------ */
 
 function FunnelWidget() {
-  const { data } = useDashboard();
-  const tracked = data?.kpis?.totalTrackedJobs ?? 0;
-  const applied = data?.kpis?.appliedJobs ?? 0;
-  const interview = data?.kpis?.interview ?? 0;
-  const offered = data?.kpis?.offered ?? 0;
+  const s = usePipelineStats();
+  const tracked = s.totalTracked;
+  const applied = s.applied.total;
+  const interview = s.applied.statusCounts.Interview;
+  const offered = s.applied.statusCounts.Offered;
   const max = Math.max(1, tracked, applied, interview, offered);
   const stages = [
     { label: "Tracked",   value: tracked,   color: "bg-blue-500/40",    text: BLUE,    to: "/jobs",   search: {} },
@@ -241,12 +287,7 @@ function FunnelWidget() {
 /** Stacked bar showing the proportion of applications in each pipeline
  *  stage. Click a segment to navigate to the filtered Applied view. */
 function PipelineBarWidget() {
-  const { data } = useApplied({});
-  const counts = useMemo(() => {
-    const m: Record<AppliedStatus, number> = { Applied: 0, Interview: 0, Negotiations: 0, Offered: 0, Rejected: 0 };
-    for (const j of data?.jobs ?? []) m[j.status as AppliedStatus] = (m[j.status as AppliedStatus] ?? 0) + 1;
-    return m;
-  }, [data]);
+  const { statusCounts: counts } = useAppliedStats();
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const segs: { status: AppliedStatus; color: string }[] = [
     { status: "Applied", color: "bg-violet-500/60" },
@@ -293,17 +334,16 @@ function PipelineBarWidget() {
 
 function TopCompaniesWidget() {
   const { data: applied } = useApplied({});
-  const { data: config } = useConfig();
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
+    // This widget ranks actual applications, not merely configured companies.
     for (const a of applied?.jobs ?? []) if (a.job) m[a.job.company] = (m[a.job.company] ?? 0) + 1;
-    for (const c of config?.config?.companies ?? []) m[c.company] = m[c.company] ?? 0;
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 7);
-  }, [applied, config]);
+  }, [applied]);
   return (
     <WidgetCard icon={<Building2 size={14} />} title="Top companies" link="/configuration">
       {counts.length === 0 ? (
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">No companies tracked yet.</p>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">No applications yet.</p>
       ) : (
         <ul className="space-y-1.5">
           {counts.map(([company, count]) => (
@@ -555,8 +595,11 @@ function InterviewOutcomesWidget() {
 /* ---------- Tag clouds ---------------------------------------------- */
 
 function StatusBreakdownWidget() {
-  const { data } = useDashboard();
-  const entries = Object.entries(data?.statusBreakdown ?? {}).filter(([, v]) => Number(v) > 0).sort((a, b) => b[1] - a[1]);
+  const s = useAppliedStats();
+  const entries = STATUS_ORDER
+    .map((status) => [status, s.statusCounts[status]] as const)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
   return (
     <WidgetCard icon={<Tag size={14} />} title="Status breakdown" link="/applied">
       {entries.length === 0 ? (
@@ -663,8 +706,8 @@ export const REGISTRY: Record<string, WidgetSpec> = Object.fromEntries([
   // Conversion (group + tiles)
   spec({ id: "kpi-conversion", title: "Conversion ratios",    description: "Application / interview / offer ratios.",                       category: "Conversion", kind: "Grouped",     icon: <TrendingUp size={14} />, cols: 2, Component: KpiConversion }),
   spec({ id: "kpi-applied",    title: "Applied",              description: "Total applications.",                                           category: "Conversion", kind: "Single", icon: <CheckSquare size={14} />, Component: KpiApplied }),
-  spec({ id: "kpi-app-ratio",  title: "Application ratio",    description: "Applied / available.",                                          category: "Conversion", kind: "Single", icon: <TrendingUp size={14} />, Component: KpiApplicationRatio }),
-  spec({ id: "kpi-int-ratio",  title: "Interview ratio",      description: "Interviews / applied.",                                         category: "Conversion", kind: "Single", icon: <TrendingUp size={14} />, Component: KpiInterviewRatio }),
+  spec({ id: "kpi-app-ratio",  title: "Application ratio",    description: "Applied / tracked.",                                            category: "Conversion", kind: "Single", icon: <TrendingUp size={14} />, Component: KpiApplicationRatio }),
+  spec({ id: "kpi-int-ratio",  title: "Interview ratio",      description: "Interview-or-later / applied.",                                category: "Conversion", kind: "Single", icon: <TrendingUp size={14} />, Component: KpiInterviewRatio }),
   spec({ id: "kpi-offer-ratio",title: "Offer ratio",          description: "Offers / applied.",                                             category: "Conversion", kind: "Single", icon: <TrendingUp size={14} />, Component: KpiOfferRatio }),
   spec({ id: "funnel",         title: "Application funnel",   description: "Tracked → Applied → Interview → Offered horizontal bars.",      category: "Conversion", kind: "Grouped",     icon: <Activity size={14} />,   cols: 2, Component: FunnelWidget }),
   spec({ id: "pipeline-bar",   title: "Pipeline distribution",description: "Stacked bar of applications across all stages.",                category: "Conversion", kind: "Grouped",     icon: <BarChart3 size={14} />,  cols: 2, Component: PipelineBarWidget }),
@@ -677,7 +720,7 @@ export const REGISTRY: Record<string, WidgetSpec> = Object.fromEntries([
   spec({ id: "kpi-rejected",   title: "Rejected count",       description: "Applications that were rejected.",                              category: "Stages",     kind: "Single", icon: <Layers size={14} />, Component: KpiRejectedCount }),
 
   // Companies
-  spec({ id: "top-companies",  title: "Top companies",        description: "Most tracked / applied-to companies.",                          category: "Companies",  kind: "Grouped",     icon: <Building2 size={14} />, Component: TopCompaniesWidget }),
+  spec({ id: "top-companies",  title: "Top companies",        description: "Most applied-to companies.",                                    category: "Companies",  kind: "Grouped",     icon: <Building2 size={14} />, Component: TopCompaniesWidget }),
   spec({ id: "ats-breakdown",  title: "Companies by ATS",     description: "Distribution of tracked companies by ATS.",                     category: "Companies",  kind: "Grouped",     icon: <Star size={14} />,      Component: AtsBreakdownWidget }),
   spec({ id: "top-locations",  title: "Top locations",        description: "Most-applied locations across applications.",                   category: "Companies",  kind: "Grouped",     icon: <MapPin size={14} />,    Component: TopLocationsWidget }),
   spec({ id: "kpi-companies",  title: "Companies covered",    description: "Companies returning data vs configured.",                       category: "Companies",  kind: "Single", icon: <Building2 size={14} />, Component: KpiCompaniesCovered }),

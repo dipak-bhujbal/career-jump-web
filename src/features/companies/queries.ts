@@ -20,8 +20,8 @@ function localRegistryMeta(): RegistryMeta {
 
 export const configKey = ["config"] as const;
 export const registryMetaKey = ["registry", "meta"] as const;
-export const registrySearchKey = (q: { search?: string; ats?: string; tier?: string }) =>
-  ["registry", "search", q.search ?? "", q.ats ?? "", q.tier ?? ""] as const;
+export const registrySearchKey = (q: { search?: string; ats?: string; tier?: string; limit?: number }) =>
+  ["registry", "search", q.search ?? "", q.ats ?? "", q.tier ?? "", q.limit ?? 50] as const;
 
 export function useConfig() {
   return useQuery({
@@ -47,7 +47,7 @@ export function useRegistryMeta() {
   });
 }
 
-export function useRegistrySearch(q: { search?: string; ats?: string; tier?: string; enabled?: boolean }) {
+export function useRegistrySearch(q: { search?: string; ats?: string; tier?: string; limit?: number; enabled?: boolean }) {
   return useQuery({
     queryKey: registrySearchKey(q),
     queryFn: async () => {
@@ -55,7 +55,7 @@ export function useRegistrySearch(q: { search?: string; ats?: string; tier?: str
       if (q.search) p.set("search", q.search);
       if (q.ats) p.set("ats", q.ats);
       if (q.tier) p.set("tier", q.tier);
-      p.set("limit", "50");
+      p.set("limit", String(q.limit ?? 50));
       return registryApi.get<{ ok: boolean; total: number; entries: RegistryEntry[] }>(`/api/registry/companies?${p.toString()}`);
     },
     enabled: q.enabled !== false,

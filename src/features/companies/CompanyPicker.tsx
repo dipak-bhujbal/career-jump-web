@@ -25,6 +25,14 @@ const TIERS = [
   { value: "TIER3_LOW", label: "Tier 3" },
 ];
 
+const STARTER_TIERS = [
+  { value: "TIER1_VERIFIED", label: "Tier 1 verified", helper: "Highest-confidence boards" },
+  { value: "TIER2_MEDIUM", label: "Tier 2", helper: "Good candidates to review" },
+  { value: "TIER3_LOW", label: "Tier 3", helper: "Lower-confidence discoveries" },
+];
+
+const STARTER_LIMIT = 8;
+
 export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, onAddCustom }: CompanyPickerProps) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -57,6 +65,10 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
 
   const hasFilter = !!(debounced || ats || tier);
   const results = useRegistrySearch({ search: debounced, ats, tier, enabled: open && hasFilter });
+  const tier1Starter = useRegistrySearch({ tier: "TIER1_VERIFIED", limit: STARTER_LIMIT, enabled: open && !hasFilter });
+  const tier2Starter = useRegistrySearch({ tier: "TIER2_MEDIUM", limit: STARTER_LIMIT, enabled: open && !hasFilter });
+  const tier3Starter = useRegistrySearch({ tier: "TIER3_LOW", limit: STARTER_LIMIT, enabled: open && !hasFilter });
+  const starterQueries = [tier1Starter, tier2Starter, tier3Starter];
 
   const trackedKeys = useMemo(() => new Set(trackedCompanies.map((c) => companyKey(c.company))), [trackedCompanies]);
   // Keep already-tracked companies visible, but push them to the bottom so
@@ -70,6 +82,59 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
       }),
     [results.data?.entries, trackedKeys],
   );
+
+  const sortEntries = (entries: RegistryEntry[]) =>
+    [...entries].sort((a, b) => {
+      const aTracked = trackedKeys.has(companyKey(a.company)) ? 1 : 0;
+      const bTracked = trackedKeys.has(companyKey(b.company)) ? 1 : 0;
+      return aTracked - bTracked;
+    });
+
+  const renderEntry = (entry: RegistryEntry) => {
+    const isTracked = trackedKeys.has(companyKey(entry.company));
+    return (
+      <li key={entry.company}>
+        <button
+          type="button"
+          disabled={isTracked}
+          onClick={() => onAddRegistry(entry)}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+            isTracked
+              ? "opacity-60 cursor-default"
+              : "hover:bg-[hsl(var(--accent))]",
+          )}
+        >
+          <div className="h-9 w-9 shrink-0 rounded-md bg-gradient-to-br from-blue-500/20 to-purple-500/20 grid place-items-center text-sm font-semibold text-[hsl(var(--foreground))]">
+            {entry.company.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-base truncate">{entry.company}</span>
+              <Badge variant="default">{formatAtsLabel(entry.ats)}</Badge>
+              <TierTag tier={entry.tier} />
+            </div>
+            {entry.board_url && (
+              <div className="text-sm text-[hsl(var(--muted-foreground))] truncate mt-0.5" title={entry.board_url}>
+                {entry.board_url}
+              </div>
+            )}
+          </div>
+          <div className="shrink-0">
+            {isTracked ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
+                <Check size={15} /> Tracked
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--primary))] font-medium">
+                <Plus size={15} /> Add
+              </span>
+            )}
+          </div>
+        </button>
+      </li>
+    );
+  };
 
   return (
     <Dialog open={open} onClose={onClose} size="lg" className="overflow-hidden">
@@ -124,8 +189,38 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
 
         <div className="flex-1 overflow-y-auto px-3 py-2">
           {!hasFilter && (
-            <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
-              Type a company name to search {totalRegistry > 0 ? `${totalRegistry.toLocaleString()} companies` : "the registry"}.
+            <div className="space-y-4">
+              <div className="px-1 pt-2 text-sm text-[hsl(var(--muted-foreground))]">
+                Start with a small curated sample by tier, or search the full verified catalog.
+              </div>
+              {STARTER_TIERS.map((starter, index) => {
+                const query = starterQueries[index];
+                const entries = sortEntries(query.data?.entries ?? []);
+                return (
+                  <section key={starter.value} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]/30">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-[hsl(var(--border))]">
+                      <div>
+                        <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{starter.label}</div>
+                        <div className="text-xs text-[hsl(var(--muted-foreground))]">{starter.helper}</div>
+                      </div>
+                      {query.isFetching && (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+                          <Loader2 size={12} className="animate-spin" /> Loading
+                        </span>
+                      )}
+                    </div>
+                    {query.isError && !query.isFetching ? (
+                      <div className="px-3 py-4 text-sm text-[hsl(var(--muted-foreground))]">
+                        Could not load this tier. Search is still available above.
+                      </div>
+                    ) : (
+                      <ul className="flex flex-col gap-1 p-1">
+                        {entries.map(renderEntry)}
+                      </ul>
+                    )}
+                  </section>
+                );
+              })}
             </div>
           )}
           {hasFilter && results.isError && !results.isFetching && (
@@ -145,51 +240,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             </div>
           )}
           <ul className="flex flex-col gap-1">
-            {sortedEntries.map((entry) => {
-              const isTracked = trackedKeys.has(companyKey(entry.company));
-              return (
-                <li key={entry.company}>
-                  <button
-                    type="button"
-                    disabled={isTracked}
-                    onClick={() => onAddRegistry(entry)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
-                      isTracked
-                        ? "opacity-60 cursor-default"
-                        : "hover:bg-[hsl(var(--accent))]",
-                    )}
-                  >
-                    <div className="h-9 w-9 shrink-0 rounded-md bg-gradient-to-br from-blue-500/20 to-purple-500/20 grid place-items-center text-sm font-semibold text-[hsl(var(--foreground))]">
-                      {entry.company.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-base truncate">{entry.company}</span>
-                        <Badge variant="default">{formatAtsLabel(entry.ats)}</Badge>
-                        <TierTag tier={entry.tier} />
-                      </div>
-                      {entry.board_url && (
-                        <div className="text-sm text-[hsl(var(--muted-foreground))] truncate mt-0.5" title={entry.board_url}>
-                          {entry.board_url}
-                        </div>
-                      )}
-                    </div>
-                    <div className="shrink-0">
-                      {isTracked ? (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-emerald-400">
-                          <Check size={15} /> Tracked
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--primary))] font-medium">
-                          <Plus size={15} /> Add
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
+            {hasFilter && sortedEntries.map(renderEntry)}
           </ul>
         </div>
 
