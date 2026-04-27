@@ -562,7 +562,7 @@ function UpcomingInterviewsWidget() {
 
 function ActionPlanCountWidget() {
   const { data } = useActionPlan();
-  return <KpiTile icon={<Target size={13} />} title="Action plan" value={formatNumber(data?.jobs.length ?? 0)} link="/plan" color={AMBER} hint="active opportunities" />;
+  return <KpiTile icon={<Target size={13} />} title="Action plan" value={formatNumber(data?.jobs?.length ?? 0)} link="/plan" color={AMBER} hint="active opportunities" />;
 }
 
 function InterviewOutcomesWidget() {

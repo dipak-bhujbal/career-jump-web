@@ -105,8 +105,9 @@ function AccountSection({ profile, updateProfile }: ReturnType<typeof useProfile
 
   const totalJobs = jobs.data?.totals.availableJobs ?? 0;
   const newJobs = jobs.data?.totals.newJobs ?? 0;
-  const totalApplied = applied.data?.jobs.length ?? 0;
-  const activeInPlan = plan.data?.jobs.filter((j) => !j.outcome || j.outcome === "Pending").length ?? 0;
+  // API envelopes can omit arrays when empty, so keep profile KPIs defensive.
+  const totalApplied = applied.data?.jobs?.length ?? 0;
+  const activeInPlan = plan.data?.jobs?.filter((j) => !j.outcome || j.outcome === "Pending").length ?? 0;
 
   const dirty = username !== baselineUsername || email !== baselineEmail;
 

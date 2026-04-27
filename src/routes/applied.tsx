@@ -82,6 +82,9 @@ function AppliedRoute() {
   const savedFiltersQuery = useSavedFilters("applied_jobs");
   const saveFilterMutation = useSaveFilter();
   const deleteFilterMutation = useDeleteFilter();
+  // Normalize optional API arrays once so empty states cannot crash on `.length`.
+  const appliedJobs = useMemo(() => data?.jobs ?? [], [data?.jobs]);
+  const companyOptions = useMemo(() => data?.companyOptions ?? [], [data?.companyOptions]);
   const savedFilters = savedFiltersQuery.data?.filters ?? [];
 
   function handleLoadFilter(sf: SavedFilter) {
@@ -134,7 +137,7 @@ function AppliedRoute() {
 
   // Resolve drawer from live query data so note/status mutations are reflected
   // immediately without requiring the user to close and reopen the drawer.
-  const drawerAppl = drawerJobKey ? (data?.jobs ?? []).find((j) => j.jobKey === drawerJobKey) ?? null : null;
+  const drawerAppl = drawerJobKey ? appliedJobs.find((j) => j.jobKey === drawerJobKey) ?? null : null;
   const drawer: DrawerSource | null = drawerAppl ? { type: "applied", appl: drawerAppl } : null;
 
   function toggleStatus(s: AppliedStatus) {
@@ -148,15 +151,15 @@ function AppliedRoute() {
     const out: Record<AppliedStatus, AppliedJob[]> = {
       Applied: [], Interview: [], Negotiations: [], Offered: [], Rejected: [],
     };
-    for (const job of data?.jobs ?? []) {
+    for (const job of appliedJobs) {
       const k = (STATUSES.includes(job.status) ? job.status : "Applied") as AppliedStatus;
       out[k].push(job);
     }
     return out;
-  }, [data]);
+  }, [appliedJobs]);
 
   const filteredJobs = useMemo(() => {
-    let list = (data?.jobs ?? []).filter((j) => j.job != null);
+    let list = appliedJobs.filter((j) => j.job != null);
     if (selectedStatuses.length > 0) list = list.filter((j) => selectedStatuses.includes(j.status));
     if (location.trim()) {
       const loc = location.trim().toLowerCase();
@@ -171,12 +174,12 @@ function AppliedRoute() {
       list = list.filter((j) => new Date(j.appliedAt).getTime() <= toMs);
     }
     return list;
-  }, [data, selectedStatuses, dateRange, location]);
+  }, [appliedJobs, selectedStatuses, dateRange, location]);
 
   const advancedFiltersActive = Boolean(
     (filter.companies?.length ?? 0) || filter.keyword || selectedStatuses.length || dateRange.from || dateRange.to || location,
   );
-  const totalCount = data?.jobs.length ?? 0;
+  const totalCount = appliedJobs.length;
 
   function handleStatusChange(jobKey: string, status: AppliedStatus) {
     updateStatus.mutate({ jobKey, status }, {
@@ -283,11 +286,11 @@ function AppliedRoute() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Companies</label>
-                  {(data?.companyOptions ?? []).length === 0 ? (
+                  {companyOptions.length === 0 ? (
                     <div className="h-9 flex items-center text-sm text-[hsl(var(--muted-foreground))] italic">No companies yet</div>
                   ) : (
                     <MultiSelect
-                      options={data?.companyOptions ?? []}
+                      options={companyOptions}
                       value={filter.companies ?? []}
                       onChange={(next) => setFilter((f) => ({ ...f, companies: next }))}
                       placeholder="All companies"
@@ -518,4 +521,3 @@ function AppliedSavedFiltersPanel({
     </div>
   );
 }
-

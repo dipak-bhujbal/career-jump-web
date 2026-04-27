@@ -231,7 +231,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
               </button>{" "}instead.
             </div>
           )}
-          {hasFilter && !results.isError && results.data?.entries.length === 0 && !results.isFetching && (
+          {hasFilter && !results.isError && (results.data?.entries?.length ?? 0) === 0 && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
               No matches. Try a different search or
               <button className="ml-1 underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>
