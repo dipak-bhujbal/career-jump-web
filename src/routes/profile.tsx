@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   User, Lock, LogOut, Save, Trash2, DatabaseZap, KeyRound, AlertTriangle,
   ChevronRight, Briefcase, CheckCircle2, ClipboardList, ShieldCheck, Eye,
-  EyeOff, Info,
+  EyeOff, Info, Download,
 } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,7 @@ import { toast } from "@/components/ui/toast";
 import { useProfile } from "@/features/profile/useProfile";
 import { useResetData } from "@/features/run/queries";
 import { useAuth } from "@/features/auth/AuthContext";
-import { api } from "@/lib/api";
-import { Download } from "lucide-react";
+import { api, type JobsEnvelope } from "@/lib/api";
 import { useJobs } from "@/features/jobs/queries";
 import { useApplied } from "@/features/applied/queries";
 import { useActionPlan } from "@/features/plan/queries";
@@ -278,7 +277,8 @@ function PasswordSection() {
 }
 
 function DangerSection() {
-  const { signOut, deleteAccount } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
+  const { profile } = useProfile();
   const [clearExpanded, setClearExpanded] = useState(false);
   const [clearAckd, setClearAckd] = useState(false);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
@@ -295,7 +295,29 @@ function DangerSection() {
   async function handleExport() {
     setExporting(true);
     try {
-      const data = await api.get<unknown>("/api/user/data-export");
+      const exportedAt = new Date().toISOString();
+      const jobs = await fetchAllJobsForExport();
+      // Build the privacy export from stable authenticated API routes because
+      // the old dedicated export endpoint is not implemented in production.
+      const [appliedJobs, actionPlan, config, dashboard] = await Promise.all([
+        api.get<unknown>("/api/applied-jobs"),
+        api.get<unknown>("/api/action-plan"),
+        api.get<unknown>("/api/config"),
+        api.get<unknown>("/api/dashboard"),
+      ]);
+      const data = {
+        exportedAt,
+        account: {
+          email: getAuthDisplayEmail(user),
+          username: getAuthDisplayName(user, profile.username || "User"),
+          profile,
+        },
+        jobs,
+        appliedJobs,
+        actionPlan,
+        config,
+        dashboard,
+      };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -332,25 +354,6 @@ function DangerSection() {
 
   return (
     <div className="space-y-4">
-      {/* Export data */}
-      <SectionCard title="Export my data" description="Download a copy of everything Career Jump holds about you (CCPA right to access)">
-        <div className="flex items-center justify-between gap-6">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Downloads a JSON file with all your jobs, applied jobs, notes, interview rounds, and account info.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={exporting}
-            onClick={handleExport}
-            className="gap-2 shrink-0"
-          >
-            <Download size={13} />
-            {exporting ? "Exporting…" : "Export data"}
-          </Button>
-        </div>
-      </SectionCard>
-
       {/* Sign out */}
       <SectionCard title="Sign out" description="End your current session on this device">
         <div className="flex items-center justify-between gap-6">
@@ -367,6 +370,25 @@ function DangerSection() {
             }}
           >
             <LogOut size={13} /> Sign out
+          </Button>
+        </div>
+      </SectionCard>
+
+      {/* Export data */}
+      <SectionCard title="Export my data" description="Download a copy of everything Career Jump holds about you (CCPA right to access)">
+        <div className="flex items-center justify-between gap-6">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            Downloads a JSON file with all your jobs, applied jobs, notes, interview rounds, and account info.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exporting}
+            onClick={handleExport}
+            className="gap-2 shrink-0"
+          >
+            <Download size={13} />
+            {exporting ? "Exporting…" : "Export data"}
           </Button>
         </div>
       </SectionCard>
@@ -470,6 +492,30 @@ function DangerSection() {
       </SectionCard>
     </div>
   );
+}
+
+async function fetchAllJobsForExport(): Promise<JobsEnvelope> {
+  const limit = 500;
+  let offset = 0;
+  const pages: JobsEnvelope[] = [];
+
+  do {
+    // Walk every jobs page so export does not silently truncate large scans.
+    const page = await api.get<JobsEnvelope>(`/api/jobs?limit=${limit}&offset=${offset}`);
+    pages.push(page);
+    offset = page.pagination.nextOffset;
+  } while (pages.at(-1)?.pagination.hasMore);
+
+  const first = pages[0];
+  return {
+    ok: true,
+    runAt: first?.runAt,
+    total: pages.reduce((sum, page) => sum + page.jobs.length, 0),
+    pagination: { offset: 0, limit, nextOffset: 0, hasMore: false },
+    totals: first?.totals ?? { availableJobs: 0, newJobs: 0, updatedJobs: 0 },
+    companyOptions: first?.companyOptions ?? [],
+    jobs: pages.flatMap((page) => page.jobs),
+  };
 }
 
 function ProfileRoute() {

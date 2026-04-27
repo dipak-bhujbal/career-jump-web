@@ -6,7 +6,15 @@
  * time, and pauses polling when no run is in flight.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type RunStatus } from "@/lib/api";
+import {
+  api,
+  type ActionPlanEnvelope,
+  type AppliedJobsEnvelope,
+  type Dashboard,
+  type JobsEnvelope,
+  type RunStatus,
+} from "@/lib/api";
+import type { LogsEnvelope } from "@/features/logs/queries";
 
 export const runStatusKey = ["run", "status"] as const;
 
@@ -51,14 +59,62 @@ export function useResetData() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<{ ok: boolean }>("/api/data/clear"),
-    onSuccess: () => {
-      // Remove cached data immediately so the UI shows empty/loading state right
-      // away rather than stale counts while refetch is in flight.
-      qc.removeQueries({ queryKey: ["jobs"] });
-      qc.removeQueries({ queryKey: ["applied"] });
-      qc.removeQueries({ queryKey: ["actionPlan"] });
-      qc.removeQueries({ queryKey: ["dashboard"] });
-      qc.removeQueries({ queryKey: ["logs"] });
+    onSuccess: async () => {
+      // After a destructive reset, overwrite mounted query results before
+      // refetching so dashboard widgets cannot keep showing stale analytics.
+      await Promise.all([
+        qc.cancelQueries({ queryKey: ["jobs"] }),
+        qc.cancelQueries({ queryKey: ["applied"] }),
+        qc.cancelQueries({ queryKey: ["actionPlan"] }),
+        qc.cancelQueries({ queryKey: ["dashboard"] }),
+        qc.cancelQueries({ queryKey: ["logs"] }),
+      ]);
+
+      const emptyJobs: JobsEnvelope = {
+        ok: true,
+        total: 0,
+        pagination: { offset: 0, limit: 0, nextOffset: 0, hasMore: false },
+        totals: { availableJobs: 0, newJobs: 0, updatedJobs: 0 },
+        companyOptions: [],
+        jobs: [],
+      };
+      const emptyApplied: AppliedJobsEnvelope = { ok: true, jobs: [], companyOptions: [] };
+      const emptyActionPlan: ActionPlanEnvelope = { ok: true, jobs: [] };
+      const emptyDashboard: Dashboard = {
+        ok: true,
+        kpis: {
+          availableJobs: 0,
+          appliedJobs: 0,
+          totalTrackedJobs: 0,
+          newJobsLatestRun: 0,
+          updatedJobsLatestRun: 0,
+          applicationRatio: 0,
+          interviewRatio: 0,
+          offerRatio: 0,
+          interview: 0,
+          negotiations: 0,
+          offered: 0,
+          rejected: 0,
+          companiesDetected: 0,
+          totalFetched: 0,
+          matchRate: 0,
+        },
+        statusBreakdown: {},
+        keywordCounts: {},
+      };
+      const emptyLogs: LogsEnvelope = { ok: true, logs: [], total: 0, retentionHours: 24, companyOptions: [], runOptions: [] };
+
+      qc.setQueriesData<JobsEnvelope>({ queryKey: ["jobs"] }, emptyJobs);
+      qc.setQueriesData<AppliedJobsEnvelope>({ queryKey: ["applied"] }, emptyApplied);
+      qc.setQueriesData<ActionPlanEnvelope>({ queryKey: ["actionPlan"] }, emptyActionPlan);
+      qc.setQueryData<Dashboard>(["dashboard"], emptyDashboard);
+      qc.setQueriesData<LogsEnvelope>({ queryKey: ["logs"] }, emptyLogs);
+
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["applied"] });
+      qc.invalidateQueries({ queryKey: ["actionPlan"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["logs"] });
     },
   });
 }
