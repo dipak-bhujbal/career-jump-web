@@ -23,6 +23,8 @@ export const registryMetaKey = ["registry", "meta"] as const;
 export const registrySearchKey = (q: { search?: string; ats?: string; tier?: string; limit?: number }) =>
   ["registry", "search", q.search ?? "", q.ats ?? "", q.tier ?? "", q.limit ?? 50] as const;
 
+export type RegistrySearchResult = { ok: boolean; total: number; entries: RegistryEntry[] };
+
 export function useConfig() {
   return useQuery({
     queryKey: configKey,
@@ -56,7 +58,10 @@ export function useRegistrySearch(q: { search?: string; ats?: string; tier?: str
       if (q.ats) p.set("ats", q.ats);
       if (q.tier) p.set("tier", q.tier);
       p.set("limit", String(q.limit ?? 50));
-      return registryApi.get<{ ok: boolean; total: number; entries: RegistryEntry[] }>(`/api/registry/companies?${p.toString()}`);
+      const result = await registryApi.get<Partial<RegistrySearchResult>>(`/api/registry/companies?${p.toString()}`);
+      // Normalize sparse registry responses so picker UI can always read arrays safely.
+      const entries = Array.isArray(result.entries) ? result.entries : [];
+      return { ok: result.ok !== false, total: result.total ?? entries.length, entries };
     },
     enabled: q.enabled !== false,
     placeholderData: (prev) => prev,

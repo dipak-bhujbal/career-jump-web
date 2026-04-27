@@ -69,6 +69,8 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
   const tier2Starter = useRegistrySearch({ tier: "TIER2_MEDIUM", limit: STARTER_LIMIT, enabled: open && !hasFilter });
   const tier3Starter = useRegistrySearch({ tier: "TIER3_LOW", limit: STARTER_LIMIT, enabled: open && !hasFilter });
   const starterQueries = [tier1Starter, tier2Starter, tier3Starter];
+  const resultEntries = results.data?.entries ?? [];
+  const resultTotal = results.data?.total ?? resultEntries.length;
 
   const trackedKeys = useMemo(() => new Set(trackedCompanies.map((c) => companyKey(c.company))), [trackedCompanies]);
   // Keep already-tracked companies visible, but push them to the bottom so
@@ -182,7 +184,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
             </Select>
             <div className="ml-auto text-sm text-[hsl(var(--muted-foreground))]">
               {results.isFetching ? <span className="inline-flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Searching…</span> :
-                hasFilter && results.data ? `${results.data.entries.length} of ${results.data.total.toLocaleString()} match` : ""}
+                hasFilter && results.data ? `${resultEntries.length} of ${resultTotal.toLocaleString()} match` : ""}
             </div>
           </div>
         </div>
@@ -231,7 +233,7 @@ export function CompanyPicker({ open, onClose, trackedCompanies, onAddRegistry, 
               </button>{" "}instead.
             </div>
           )}
-          {hasFilter && !results.isError && (results.data?.entries?.length ?? 0) === 0 && !results.isFetching && (
+          {hasFilter && !results.isError && resultEntries.length === 0 && !results.isFetching && (
             <div className="px-4 py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
               No matches. Try a different search or
               <button className="ml-1 underline hover:text-[hsl(var(--foreground))]" onClick={onAddCustom}>
